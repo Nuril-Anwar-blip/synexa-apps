@@ -11,7 +11,6 @@ import 'package:flutter/material.dart';
 class CustomNavbar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
-  final Widget body;
 
   /// avatar untuk tab profile
   final String? photoUrl;
@@ -20,20 +19,16 @@ class CustomNavbar extends StatelessWidget {
     super.key,
     required this.currentIndex,
     required this.onTap,
-    required this.body,
     this.photoUrl,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: body,
-      bottomNavigationBar: _PillNavbar(
-        currentIndex: currentIndex,
-        onTap: onTap,
-        photoUrl: photoUrl,
-      ),
+    // Kembalikan langsung _PillNavbar agar bisa digunakan di property bottomNavigationBar milik Scaffold
+    return _PillNavbar(
+      currentIndex: currentIndex,
+      onTap: onTap,
+      photoUrl: photoUrl,
     );
   }
 }
@@ -52,62 +47,57 @@ class _PillNavbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+    return Container(
+      // Margin bawah agar terlihat melayang di atas gesture bar / navigasi HP
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      child: SafeArea(
+        top: false,
         child: Container(
-          height: 64,
+          height: 64, // Lebih tinggi agar lebih proporsional
+          margin: const EdgeInsets.fromLTRB(40, 0, 40, 24), // Berjarak dari kiri-kanan agar ramping ke tengah
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(22),
+            color: isDark ? const Color(0xFF252525) : Colors.white,
+            borderRadius: BorderRadius.circular(36), // Pill-shaped
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
+                color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
               ),
             ],
+            border: isDark 
+                ? Border.all(color: Colors.white.withOpacity(0.05), width: 0.5)
+                : Border.all(color: Colors.black.withOpacity(0.05), width: 0.5),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              Expanded(
-                child: _NavPillItem(
-                  isActive: currentIndex == 0,
-                  icon: Icons.home_rounded,
-                  label: 'Home',
-                  activeColor: theme.primaryColor,
-                  onTap: () => onTap(0),
-                ),
+              _NavPillItem(
+                isActive: currentIndex == 0,
+                icon: Icons.home_rounded,
+                activeColor: theme.primaryColor,
+                onTap: () => onTap(0),
               ),
-              Expanded(
-                child: _NavPillItem(
-                  isActive: currentIndex == 1,
-                  icon: Icons.groups_rounded,
-                  label: 'Komunitas',
-                  activeColor: theme.primaryColor,
-                  onTap: () => onTap(1),
-                ),
+              _NavPillItem(
+                isActive: currentIndex == 1,
+                icon: Icons.groups_rounded,
+                activeColor: theme.primaryColor,
+                onTap: () => onTap(1),
               ),
-              Expanded(
-                child: _NavPillItem(
-                  isActive: currentIndex == 2,
-                  icon: Icons.chat_bubble_rounded,
-                  label: 'Chat',
-                  activeColor: theme.primaryColor,
-                  onTap: () => onTap(2),
-                ),
+              _NavPillItem(
+                isActive: currentIndex == 2,
+                icon: Icons.chat_bubble_rounded,
+                activeColor: theme.primaryColor,
+                onTap: () => onTap(2),
               ),
-              Expanded(
-                child: _ProfileNavItem(
-                  isActive: currentIndex == 3,
-                  label: 'Profil',
-                  activeColor: theme.primaryColor,
-                  photoUrl: photoUrl,
-                  onTap: () => onTap(3),
-                ),
+              _ProfileNavItem(
+                isActive: currentIndex == 3,
+                activeColor: theme.primaryColor,
+                photoUrl: photoUrl,
+                onTap: () => onTap(3),
               ),
             ],
           ),
@@ -117,17 +107,16 @@ class _PillNavbar extends StatelessWidget {
   }
 }
 
+/// Item Navigasi Standar (Icon Only)
 class _NavPillItem extends StatelessWidget {
   final bool isActive;
   final IconData icon;
-  final String label;
   final Color activeColor;
   final VoidCallback onTap;
 
   const _NavPillItem({
     required this.isActive,
     required this.icon,
-    required this.label,
     required this.activeColor,
     required this.onTap,
   });
@@ -138,44 +127,34 @@ class _NavPillItem extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(20),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isActive ? activeColor.withOpacity(0.14) : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
+          color: isActive ? activeColor.withOpacity(0.12) : Colors.transparent,
+          shape: BoxShape.circle,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 24, color: isActive ? activeColor : inactive),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: isActive ? activeColor : inactive,
-              ),
-            ),
-          ],
+        child: Icon(
+          icon, 
+          size: 26, 
+          color: isActive ? activeColor : inactive
         ),
       ),
     );
   }
 }
 
+/// Item Navigasi Profil (dengan Foto Avatar)
 class _ProfileNavItem extends StatelessWidget {
   final bool isActive;
-  final String label;
   final Color activeColor;
   final String? photoUrl;
   final VoidCallback onTap;
 
   const _ProfileNavItem({
     required this.isActive,
-    required this.label,
     required this.activeColor,
     required this.photoUrl,
     required this.onTap,
@@ -187,47 +166,49 @@ class _ProfileNavItem extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(20),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: isActive ? activeColor.withOpacity(0.14) : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
+          color: isActive ? activeColor.withOpacity(0.12) : Colors.transparent,
+          shape: BoxShape.circle,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isActive ? activeColor : Colors.transparent,
-                  width: 2,
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: (photoUrl != null && photoUrl!.isNotEmpty)
-                    ? Image.network(photoUrl!, fit: BoxFit.cover)
-                    : Icon(
-                        Icons.person,
-                        color: isActive ? activeColor : inactive,
-                      ),
-              ),
+        child: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isActive ? activeColor : Colors.transparent,
+              width: 1.5,
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: isActive ? activeColor : inactive,
-              ),
-            ),
-          ],
+            boxShadow: isActive ? [
+              BoxShadow(
+                color: activeColor.withOpacity(0.2),
+                blurRadius: 8,
+              )
+            ] : [],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: (photoUrl != null && photoUrl!.isNotEmpty)
+                ? Image.network(
+                    photoUrl!, 
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Icon(
+                      Icons.person_rounded,
+                      size: 20,
+                      color: isActive ? activeColor : inactive,
+                    ),
+                  )
+                : Icon(
+                    Icons.person_rounded,
+                    size: 20,
+                    color: isActive ? activeColor : inactive,
+                  ),
+          ),
         ),
       ),
     );

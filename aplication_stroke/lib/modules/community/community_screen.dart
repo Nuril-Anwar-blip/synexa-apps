@@ -263,7 +263,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
       ),
       floatingActionButton: Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).padding.bottom + 80,
+          bottom: MediaQuery.of(context).padding.bottom + 74,
         ),
         child: FloatingActionButton.extended(
           onPressed: _navigateToCreatePost,
@@ -287,9 +287,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.fromLTRB(
           16,
+          12,
           16,
-          16,
-          MediaQuery.of(context).padding.bottom + 100,
+          MediaQuery.of(context).padding.bottom + 80,
         ),
         children: [
           _CommunityHeroCard(

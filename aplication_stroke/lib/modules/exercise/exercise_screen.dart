@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
+
+/// Model untuk Rencana Latihan.
+/// Digunakan untuk mendefinisikan detail setiap jenis latihan pemulihan.
 class ExercisePlan {
   ExercisePlan({
+    required this.id, // Menambahkan ID unik untuk sinkronisasi database
     required this.title,
     required this.focus,
     required this.durationMinutes,
@@ -12,6 +18,7 @@ class ExercisePlan {
     this.isCompleted = false,
   });
 
+  final String id;
   final String title;
   final String focus;
   final int durationMinutes;
@@ -22,6 +29,8 @@ class ExercisePlan {
   bool isCompleted;
 }
 
+/// Layar Latihan Pemulihan.
+/// Menampilkan daftar latihan harian dan melacak progres pengguna menggunakan Supabase.
 class ExerciseScreen extends StatefulWidget {
   const ExerciseScreen({super.key});
 
@@ -30,8 +39,13 @@ class ExerciseScreen extends StatefulWidget {
 }
 
 class _ExerciseScreenState extends State<ExerciseScreen> {
+  final _supabase = Supabase.instance.client;
+  bool _isInitLoading = true;
+  String? _userId;
+
   final List<ExercisePlan> _plans = [
     ExercisePlan(
+      id: 'stretch_neck',
       title: 'Peregangan Leher',
       focus: 'Fleksibilitas',
       durationMinutes: 5,
@@ -47,6 +61,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       ],
     ),
     ExercisePlan(
+      id: 'grip_work',
       title: 'Latihan Genggaman',
       focus: 'Kekuatan',
       durationMinutes: 7,
@@ -62,6 +77,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       ],
     ),
     ExercisePlan(
+      id: 'sit_stand',
       title: 'Latihan Duduk-Berdiri',
       focus: 'Keseimbangan',
       durationMinutes: 8,
@@ -77,6 +93,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       ],
     ),
     ExercisePlan(
+      id: 'weight_shift',
       title: 'Weight Shift',
       focus: 'Koordinasi',
       durationMinutes: 6,
@@ -92,6 +109,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       ],
     ),
     ExercisePlan(
+      id: 'march_place',
       title: 'Latihan Jalan di Tempat',
       focus: 'Kardio Ringan',
       durationMinutes: 10,
@@ -107,6 +125,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       ],
     ),
     ExercisePlan(
+      id: 'arm_stretch',
       title: 'Latihan Lengan Duduk',
       focus: 'Mobilitas',
       durationMinutes: 6,
@@ -123,6 +142,69 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     ),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _userId = _supabase.auth.currentUser?.id;
+    _loadTodayProgress();
+  }
+
+  /// Memuat data progres latihan hari ini dari Supabase.
+  Future<void> _loadTodayProgress() async {
+    if (_userId == null) return;
+
+    try {
+      final today = DateTime.now();
+      final dateStr = DateFormat('yyyy-MM-dd').format(today);
+
+      final response = await _supabase
+          .from('exercise_progress')
+          .select('exercise_id, completed')
+          .eq('user_id', _userId!)
+          .eq('date', dateStr);
+
+      if (mounted && response != null) {
+        final List<dynamic> data = response;
+        setState(() {
+          for (var item in data) {
+            final id = item['exercise_id'];
+            final completed = item['completed'] ?? false;
+            final planIndex = _plans.indexWhere((p) => p.id == id);
+            if (planIndex != -1) {
+              _plans[planIndex].isCompleted = completed;
+            }
+          }
+          _isInitLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading progress: $e');
+      if (mounted) setState(() => _isInitLoading = false);
+    }
+  }
+
+  /// Memperbarui status penyelesaian latihan di Supabase.
+  Future<void> _updateSupabaseProgress(ExercisePlan plan) async {
+    if (_userId == null) return;
+
+    try {
+      final today = DateTime.now();
+      final dateStr = DateFormat('yyyy-MM-dd').format(today);
+      final dayKey = DateFormat('EEEE').format(today).toLowerCase();
+
+      await _supabase.from('exercise_progress').upsert({
+        'user_id': _userId,
+        'date': dateStr,
+        'day': dayKey,
+        'exercise_id': plan.id,
+        'completed': plan.isCompleted,
+        'updated_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'user_id, date, exercise_id');
+    } catch (e) {
+      debugPrint('Error updating supabase: $e');
+    }
+  }
+
   final List<String> _levels = const ['Semua', 'Ringan', 'Sedang', 'Intens'];
   String _selectedLevel = 'Semua';
 
@@ -135,8 +217,12 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
       .where((plan) => plan.isCompleted)
       .fold(0, (total, plan) => total + plan.durationMinutes);
 
+  /// Mengganti status penyelesaian latihan dan menyimpannya ke database.
   void _toggleCompletion(ExercisePlan plan) {
-    setState(() => plan.isCompleted = !plan.isCompleted);
+    setState(() {
+      plan.isCompleted = !plan.isCompleted;
+    });
+    _updateSupabaseProgress(plan);
   }
 
   void _showSteps(ExercisePlan plan) {
@@ -267,6 +353,13 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Tampilkan indikator loading saat memuat data pertama kali
+    if (_isInitLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final totalMinutes = _plans.fold<int>(
       0,
       (total, plan) => total + plan.durationMinutes,

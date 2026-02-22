@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../supabase/supabase_client.dart';
 import '../../models/user_model.dart';
 import '../../extensions/user_model_extension.dart';
 import '../../providers/theme_provider.dart';
+import '../../providers/language_provider.dart';
 import 'edit_profile_screen.dart';
 import '../auth/login_screen.dart';
 import '../pairing_scanner/pairing_scanner_screen.dart';
@@ -52,7 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
       }
     } catch (e) {
-      print("❌ LOG FETCH ERROR: Gagal mengambil profil: $e");
+      debugPrint("❌ LOG FETCH ERROR: Gagal mengambil profil: $e");
       if (mounted) {
         setState(() => isLoading = false);
         ScaffoldMessenger.of(
@@ -67,7 +69,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _updateProfile(Map<String, dynamic> data) async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
-      print("LOG UPDATE: User tidak ditemukan, update dibatalkan.");
+      debugPrint("LOG UPDATE: User tidak ditemukan, update dibatalkan.");
       return;
     }
 
@@ -96,7 +98,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       dataForSupabase['photo_url'] = data['photoUrl'];
     }
 
-    print(
+    debugPrint(
       "✅ LOG UPDATE: Data payload FINAL yang dikirim ke Supabase: $dataForSupabase",
     );
 
@@ -106,9 +108,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .update(dataForSupabase) // <-- Gunakan Map yang sudah diterjemahkan
           .eq('id', user.id);
 
-      print("🎉 LOG UPDATE: SUKSES memperbarui data di Supabase.");
+      debugPrint("🎉 LOG UPDATE: SUKSES memperbarui data di Supabase.");
     } catch (e) {
-      print("❌ LOG UPDATE ERROR: Gagal saat memanggil .update() Supabase: $e");
+      debugPrint("❌ LOG UPDATE ERROR: Gagal saat memanggil .update() Supabase: $e");
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -178,6 +180,113 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// Menampilkan dialog untuk memilih jenis font
+  void _showFontDialog(BuildContext context, ThemeProvider themeProvider) {
+    final fonts = ['Poppins', 'Inter', 'Roboto', 'Lato', 'Open Sans'];
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pilih Jenis Font'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: fonts.map((font) => ListTile(
+            title: Text(font, style: GoogleFonts.getFont(font)),
+            trailing: themeProvider.fontFamily == font ? const Icon(Icons.check, color: Colors.teal) : null,
+            onTap: () {
+              themeProvider.setFontFamily(font);
+              Navigator.pop(context);
+            },
+          )).toList(),
+        ),
+      ),
+    );
+  }
+
+  /// Menampilkan dialog untuk mengatur ukuran font
+  void _showFontSizeDialog(BuildContext context, ThemeProvider themeProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Ukuran Teks'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Sesuaikan kenyamanan membaca Anda'),
+                const SizedBox(height: 20),
+                Slider(
+                  value: themeProvider.fontSize,
+                  min: 0.8,
+                  max: 1.4,
+                  divisions: 3,
+                  label: themeProvider.fontSize == 0.8 ? 'Kecil' : (themeProvider.fontSize == 1.0 ? 'Normal' : (themeProvider.fontSize == 1.2 ? 'Besar' : 'Sangat Besar')),
+                  onChanged: (val) {
+                    themeProvider.setFontSize(val);
+                    setDialogState(() {});
+                  },
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: const [
+                    Text('A', style: TextStyle(fontSize: 12)),
+                    Text('A', style: TextStyle(fontSize: 16)),
+                    Text('A', style: TextStyle(fontSize: 20)),
+                    Text('A', style: TextStyle(fontSize: 24)),
+                  ],
+                )
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup'))
+            ],
+          );
+        }
+      ),
+    );
+  }
+
+  /// Menampilkan dialog untuk memilih bahasa
+  void _showLanguageDialog(BuildContext context, LanguageProvider langProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pilih Bahasa'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildLanguageOption(context, langProvider, code: 'id', name: 'Bahasa Indonesia', flag: '🇮🇩'),
+            _buildLanguageOption(context, langProvider, code: 'en', name: 'English', flag: '🇺🇸'),
+            _buildLanguageOption(context, langProvider, code: 'ms', name: 'Melayu', flag: '🇲🇾'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Widget pembantu untuk opsi bahasa dalam dialog
+  Widget _buildLanguageOption(
+    BuildContext context,
+    LanguageProvider langProvider, {
+    required String code,
+    required String name,
+    required String flag,
+  }) {
+    final isSelected = langProvider.currentLanguage == code;
+    return ListTile(
+      leading: Text(flag, style: const TextStyle(fontSize: 24)),
+      title: Text(name),
+      trailing: isSelected ? const Icon(Icons.check, color: Colors.teal) : null,
+      onTap: () {
+        langProvider.setLanguage(code);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Bahasa diubah ke $name')),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -209,10 +318,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   parent: AlwaysScrollableScrollPhysics(),
                 ),
                 padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).padding.bottom + 100,
+                  bottom: MediaQuery.of(context).padding.bottom + 80,
                 ),
                 children: [
                   const SizedBox(height: 12),
+                  /// Widget hero untuk menampilkan informasi dasar profil pengguna.
                   _ProfileHero(
                     name: userModel!.fullNameUI,
                     email: userModel!.email,
@@ -315,41 +425,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             );
                           },
                         ),
-                        const SizedBox(height: 12),
-                        Consumer<ThemeProvider>(
-                          builder: (context, themeProvider, _) {
-                            return _ProfileActionButton(
-                              icon: themeProvider.isDarkMode
-                                  ? Icons.light_mode_rounded
-                                  : Icons.dark_mode_rounded,
-                              title: themeProvider.isDarkMode
-                                  ? 'Mode Terang'
-                                  : 'Mode Gelap',
-                              subtitle: 'Ubah tema aplikasi',
-                              backgroundColor: Colors.blue.shade50,
-                              foregroundColor: Colors.blue.shade700,
-                              onTap: () {
-                                themeProvider.toggleTheme();
+                        const SizedBox(height: 20),
+                        _InfoSectionCard(
+                          title: 'Pengaturan Aplikasi',
+                          icon: Icons.settings_outlined,
+                          children: [
+                            Consumer<LanguageProvider>(
+                              builder: (context, langProvider, _) {
+                                return ListTile(
+                                  leading: const Icon(Icons.language_rounded, color: Colors.orange),
+                                  title: const Text('Bahasa'),
+                                  subtitle: Text(langProvider.languageName),
+                                  trailing: const Icon(Icons.chevron_right),
+                                  onTap: () => _showLanguageDialog(context, langProvider),
+                                );
                               },
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        _ProfileActionButton(
-                          icon: Icons.language_rounded,
-                          title: 'Bahasa',
-                          subtitle: 'Ubah bahasa aplikasi (Segera hadir)',
-                          backgroundColor: Colors.orange.shade50,
-                          foregroundColor: Colors.orange.shade700,
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Fitur perubahan bahasa akan segera hadir',
-                                ),
-                              ),
-                            );
-                          },
+                            ),
+                            Consumer<ThemeProvider>(
+                              builder: (context, themeProvider, _) {
+                                return Column(
+                                  children: [
+                                    ListTile(
+                                      leading: const Icon(Icons.font_download_rounded, color: Colors.blue),
+                                      title: const Text('Jenis Font'),
+                                      subtitle: Text(themeProvider.fontFamily),
+                                      trailing: const Icon(Icons.chevron_right),
+                                      onTap: () => _showFontDialog(context, themeProvider),
+                                    ),
+                                    ListTile(
+                                      leading: const Icon(Icons.format_size_rounded, color: Colors.green),
+                                      title: const Text('Ukuran Teks'),
+                                      subtitle: Text(themeProvider.fontSize == 0.8 ? 'Kecil' : (themeProvider.fontSize == 1.0 ? 'Normal' : 'Besar')),
+                                      trailing: const Icon(Icons.chevron_right),
+                                      onTap: () => _showFontSizeDialog(context, themeProvider),
+                                    ),
+                                    SwitchListTile(
+                                      secondary: Icon(
+                                        themeProvider.isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                                        color: themeProvider.isDarkMode ? Colors.purple : Colors.amber,
+                                      ),
+                                      title: Text(themeProvider.isDarkMode ? 'Mode Gelap' : 'Mode Terang'),
+                                      value: themeProvider.isDarkMode,
+                                      onChanged: (val) => themeProvider.toggleTheme(),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 12),
                         _ProfileActionButton(

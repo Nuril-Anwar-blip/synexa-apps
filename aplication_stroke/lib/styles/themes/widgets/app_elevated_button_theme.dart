@@ -16,12 +16,24 @@ class AppElevatedButtonTheme {
     style: ElevatedButton.styleFrom(
       splashFactory: InkRipple.splashFactory,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
       foregroundColor: AppColor.onPrimary,
       elevation: 0,
-      textStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      backgroundColor: AppColor.primary,
+    ),
+  );
+
+  /// Tema Elevated Button untuk Dark Mode.
+  static ElevatedButtonThemeData get darkData => ElevatedButtonThemeData(
+    style: ElevatedButton.styleFrom(
+      splashFactory: InkRipple.splashFactory,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+      foregroundColor: Colors.white,
+      elevation: 0,
+      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       backgroundColor: AppColor.primary,
     ),
   );
 }
-

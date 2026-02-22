@@ -14,8 +14,14 @@ class AppTextSelectionTheme {
 
   static TextSelectionThemeData get data => TextSelectionThemeData(
     cursorColor: AppColor.text,
-    selectionColor: AppColor.primary.withValues(alpha: 0.8),
+    selectionColor: AppColor.primary.withOpacity(0.8),
+    selectionHandleColor: AppColor.primary,
+  );
+
+  /// Tema Seleksi Teks untuk Dark Mode.
+  static TextSelectionThemeData get darkData => TextSelectionThemeData(
+    cursorColor: Colors.white,
+    selectionColor: AppColor.primary.withOpacity(0.4),
     selectionHandleColor: AppColor.primary,
   );
 }
-

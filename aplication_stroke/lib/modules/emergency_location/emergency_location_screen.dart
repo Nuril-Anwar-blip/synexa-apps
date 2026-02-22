@@ -101,49 +101,60 @@ class _EmergencyLocationScreenState extends State<EmergencyLocationScreen> {
     }
   }
 
-  // =============================================================
-  // ⭐ METHOD UTAMA – DIJAMIN MENGEMBALIKAN RUMAH SAKIT
-  // Dengan fallback strategi
-  // =============================================================
+  /// Metode utama untuk mengambil daftar rumah sakit terdekat dengan strategi fallback.
   Future<void> _fetchHospitalsGuaranteed() async {
     setState(() {
       _loadingPlaces = true;
       _error = null;
     });
 
-    debugPrint("SOS: Starting Primary Search (Text Search)...");
-    // STRATEGI BARU: Text Search Jadi Utama karena jauh lebih akurat di Indonesia
-    final primaryResults = await _searchByText(query: "Rumah Sakit");
+    debugPrint("SOS: Memulai Pencarian Utama (Text Search)...");
+    
+    // STRATEGI: Menggunakan kueri yang lebih luas untuk mencakup berbagai fasilitas medis di Indonesia.
+    final queries = ["Rumah Sakit", "RS", "Puskesmas", "Klinik"];
+    List<_HospitalPlace> combinedResults = [];
 
-    if (primaryResults.isNotEmpty) {
-      _places.addAll(primaryResults);
-      debugPrint("SOS: Text Search success (${primaryResults.length} places)");
+    for (final q in queries) {
+      final results = await _searchByText(query: q);
+      combinedResults.addAll(results);
+      if (combinedResults.length >= 10) break; // Jika sudah cukup, hentikan pencarian
+    }
+
+    if (combinedResults.isNotEmpty) {
+      // Hapus duplikat berdasarkan nama
+      final seen = <String>{};
+      _places.clear();
+      _places.addAll(combinedResults.where((p) => seen.add(p.name)));
+      
+      debugPrint("SOS: Text Search berhasil (${_places.length} tempat ditemukan)");
       setState(() => _loadingPlaces = false);
       return;
     }
 
-    debugPrint("SOS: Text Search failed, trying Nearby Tier 1...");
+    debugPrint("SOS: Text Search gagal, mencoba Nearby Search (Fallback)...");
     final tier1Results = await _searchNearby(
-      types: ["hospital", "medical_clinic", "doctor"],
+      types: ["hospital", "medical_clinic", "doctor", "health_care_provider", "health"],
     );
 
     if (tier1Results.isNotEmpty) {
+      _places.clear();
       _places.addAll(tier1Results);
-      debugPrint("SOS: Tier 1 success (${tier1Results.length} places)");
+      debugPrint("SOS: Nearby Search berhasil (${tier1Results.length} tempat ditemukan)");
       setState(() => _loadingPlaces = false);
       return;
     }
 
     setState(() {
       _loadingPlaces = false;
-      _error = "DEBUG MODE - TIDAK ADA HASIL\n"
+      _error = "TIDAK ADA HASIL DITEMUKAN\n"
           "----------------------------------\n"
-          "Lat: ${_currentLatLng?.latitude}\n"
-          "Lng: ${_currentLatLng?.longitude}\n"
-          "API Key: ${apiKey.substring(0, 5)}...${apiKey.substring(apiKey.length - 5)}\n"
-          "Radius: 30000m\n"
+          "Lokasi: ${_currentLatLng?.latitude}, ${_currentLatLng?.longitude}\n"
+          "Radius: 20km\n"
           "----------------------------------\n"
-          "Silakan 'Hot Restart' (Bukan Hot Reload) HP Anda.";
+          "Tips:\n"
+          "1. Pastikan GPS/Layanan Lokasi aktif.\n"
+          "2. Pastikan koneksi internet stabil.\n"
+          "3. Coba 'Hot Restart' aplikasi jika masalah berlanjut.";
     });
   }
 
@@ -170,7 +181,7 @@ class _EmergencyLocationScreenState extends State<EmergencyLocationScreen> {
             "latitude": _currentLatLng!.latitude,
             "longitude": _currentLatLng!.longitude,
           },
-          "radius": 30000.0, // Jangkauan diperluas hingga 30km
+          "radius": 20000.0, // Jangkauan dibatasi hingga 20km sesuai permintaan
         },
       },
     };
@@ -267,7 +278,7 @@ class _EmergencyLocationScreenState extends State<EmergencyLocationScreen> {
             "latitude": _currentLatLng!.latitude,
             "longitude": _currentLatLng!.longitude,
           },
-          "radius": 30000.0,
+          "radius": 20000.0, // Diperbarui menjadi 20km sesuai permintaan
         },
       },
     };

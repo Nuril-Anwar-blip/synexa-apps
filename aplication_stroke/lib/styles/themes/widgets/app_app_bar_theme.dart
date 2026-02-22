@@ -18,14 +18,16 @@ class AppAppBarTheme {
     backgroundColor: AppColor.background,
     scrolledUnderElevation: 0,
     elevation: 0,
+    toolbarHeight: 56, // Lebih seimbang, tidak terlalu tinggi namun tetap aman
   );
 
   /// Tema AppBar untuk Dark Mode.
-  static AppBarTheme get darkData => AppBarTheme(
-    backgroundColor: Colors.grey[900],
+  static AppBarTheme get darkData => const AppBarTheme(
+    backgroundColor: Color(0xFF121212),
     foregroundColor: Colors.white,
     scrolledUnderElevation: 0,
     elevation: 0,
+    toolbarHeight: 56, // Konsisten dengan light mode
   );
 }
 

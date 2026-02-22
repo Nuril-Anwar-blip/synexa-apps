@@ -21,5 +21,13 @@ class AppProgressIndicatorTheme {
     circularTrackPadding: const EdgeInsets.all(10),
     circularTrackColor: Colors.transparent,
   );
+
+  /// Tema Progress Indicator untuk Dark Mode.
+  static ProgressIndicatorThemeData get darkData => ProgressIndicatorThemeData(
+    color: AppColor.primary,
+    linearTrackColor: AppColor.primary.withOpacity(0.2),
+    strokeWidth: 1,
+    refreshBackgroundColor: const Color(0xFF1E1E1E),
+  );
 }
 

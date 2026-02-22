@@ -395,7 +395,7 @@ class _PatientChatDashboardScreenState
       ),
       floatingActionButton: Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).padding.bottom + 80,
+          bottom: MediaQuery.of(context).padding.bottom + 74,
         ),
         child: FloatingActionButton.extended(
           onPressed: _isStartingChat ? null : _showPharmacistPicker,
@@ -415,7 +415,7 @@ class _PatientChatDashboardScreenState
                   16,
                   16,
                   16,
-                  MediaQuery.of(context).padding.bottom + 100,
+                  MediaQuery.of(context).padding.bottom + 80,
                 ),
                 children: [
                   _PatientHeroCard(totalRooms: _rooms.length),

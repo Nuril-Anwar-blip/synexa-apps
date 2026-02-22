@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:aplication_stroke/global.dart';
 import 'package:aplication_stroke/providers/theme_provider.dart';
+import 'package:aplication_stroke/providers/language_provider.dart';
+import 'package:aplication_stroke/styles/themes/app_theme.dart';
 import 'package:aplication_stroke/modules/auth/widgets/splash_screen.dart';
 
 void main() async {
@@ -26,7 +29,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        // Tambahkan provider lain di sini jika ada di masa depan
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
       ],
       child: const MyApp(),
     ),
@@ -38,28 +41,36 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-
-    return MaterialApp(
-      title: 'Stroke Care',
-      debugShowCheckedModeBanner: false,
-      themeMode: themeProvider.themeMode,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          primary: Colors.blue.shade700,
-        ),
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-        ),
-      ),
-      darkTheme: ThemeData.dark(useMaterial3: true),
-      // SplashScreen menangani pengecekan login dan redirect
-      home: const SplashScreen(),
+    return Consumer2<ThemeProvider, LanguageProvider>(
+      builder: (context, themeProvider, languageProvider, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Integrated Stroke', // Changed title
+          theme: AppTheme.getTheme(
+            isDark: false,
+            fontFamily: themeProvider.fontFamily,
+            fontSizeScale: themeProvider.fontSize,
+          ),
+          darkTheme: AppTheme.getTheme(
+            isDark: true,
+            fontFamily: themeProvider.fontFamily,
+            fontSizeScale: themeProvider.fontSize,
+          ),
+          themeMode: themeProvider.themeMode,
+          locale: languageProvider.locale, // Used languageProvider from Consumer2
+          supportedLocales: const [
+            Locale('en'),
+            Locale('id'),
+            Locale('ms'),
+          ],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: const SplashScreen(), // Kept SplashScreen as it handles login check
+        );
+      },
     );
   }
 }
