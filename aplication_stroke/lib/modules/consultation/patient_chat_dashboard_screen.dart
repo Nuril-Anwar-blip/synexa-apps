@@ -19,9 +19,9 @@ class ChatRoomInfo {
 
   factory ChatRoomInfo.fromMap(Map<String, dynamic> map) {
     return ChatRoomInfo(
-      roomId: map['room_id']?.toString() ?? '',
+      roomId: map['id']?.toString() ?? '',
       pharmacistId: map['pharmacist_id']?.toString() ?? '',
-      pharmacistName: map['pharmacist_full_name'] ?? 'Apoteker',
+      pharmacistName: map['pharmacist_name'] ?? 'Apoteker',
       pharmacistAvatarUrl: map['pharmacist_photo_url'] ?? '',
       lastMessage: map['last_message_content'],
       lastMessageTimestamp: map['last_message_created_at'] != null
@@ -146,11 +146,11 @@ class _PatientChatDashboardScreenState
 
       final pharmacistProfiles = <String, Map<String, dynamic>>{};
       if (pharmacistIds.isNotEmpty) {
-        final List<dynamic> pharmacists = await _supabase
+        final List<dynamic> workers = await _supabase
             .from('users')
             .select('id, full_name, photo_url')
             .filter('id', 'in', pharmacistIds);
-        for (final raw in pharmacists) {
+        for (final raw in workers) {
           final map = Map<String, dynamic>.from(raw as Map);
           final id = map['id']?.toString();
           if (id != null) pharmacistProfiles[id] = map;

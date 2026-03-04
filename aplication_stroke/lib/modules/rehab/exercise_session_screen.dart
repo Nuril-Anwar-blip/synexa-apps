@@ -15,7 +15,7 @@ class ExerciseSessionScreen extends StatefulWidget {
 class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
   final RehabService _rehabService = RehabService();
   final String _userId = Supabase.instance.client.auth.currentUser?.id ?? '';
-  
+
   late int _timeLeft;
   Timer? _timer;
   bool _isRunning = false;
@@ -54,7 +54,7 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
   Future<void> _finishSession() async {
     _stopTimer();
     setState(() => _isFinished = true);
-    
+
     try {
       await _rehabService.logExerciseCompletion(
         userId: _userId,
@@ -119,7 +119,7 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
   Widget _buildTimerDisplay() {
     final minutes = (_timeLeft / 60).floor();
     final seconds = _timeLeft % 60;
-    
+
     return Column(
       children: [
         Stack(
@@ -143,7 +143,10 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
         const SizedBox(height: 16),
         Text(
           _isRunning ? 'Sedang Berlangsung' : 'Siap Mulai?',
-          style: TextStyle(color: Colors.blue.shade700, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            color: Colors.blue.shade700,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -158,17 +161,25 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        ...widget.exercise.instructions.map((step) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.check_circle, size: 20, color: Colors.green),
-              const SizedBox(width: 8),
-              Expanded(child: Text(step)),
-            ],
-          ),
-        )).toList(),
+        ...widget.exercise.instructions
+            .map(
+              (step) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
+                      size: 20,
+                      color: Colors.green,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(step)),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
       ],
     );
   }
@@ -181,13 +192,21 @@ class _ExerciseSessionScreenState extends State<ExerciseSessionScreen> {
           width: double.infinity,
           height: 56,
           child: ElevatedButton(
-            onPressed: _isFinished ? () => Navigator.pop(context) : _toggleTimer,
+            onPressed: _isFinished
+                ? () => Navigator.pop(context)
+                : _toggleTimer,
             style: ElevatedButton.styleFrom(
-              backgroundColor: _isFinished ? Colors.green : (_isRunning ? Colors.red : Colors.blue),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: _isFinished
+                  ? Colors.green
+                  : (_isRunning ? Colors.red : Colors.blue),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
             child: Text(
-              _isFinished ? 'Selesai' : (_isRunning ? 'Berhenti Sejenak' : 'Mulai Sekarang'),
+              _isFinished
+                  ? 'Selesai'
+                  : (_isRunning ? 'Berhenti Sejenak' : 'Mulai Sekarang'),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),

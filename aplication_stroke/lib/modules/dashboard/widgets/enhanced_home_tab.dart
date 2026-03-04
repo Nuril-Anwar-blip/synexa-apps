@@ -89,8 +89,12 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab> {
         ),
         callback: (payload) async {
           final row = payload.newRecord;
-          if (row['heart_rate'] != null) {
-            _updateStats(heartRate: '${row['heart_rate']} bpm');
+          // Schema matches: type = 'heart_rate', value = {"heart_rate": 80}
+          if (row['type'] == 'heart_rate' && row['value'] != null) {
+            final value = row['value'] as Map<String, dynamic>;
+            if (value['heart_rate'] != null) {
+              _updateStats(heartRate: '${value['heart_rate']} bpm');
+            }
           }
         },
       )
@@ -125,13 +129,15 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab> {
     try {
       final response = await _supabase
           .from('sensor_data')
-          .select('heart_rate')
+          .select('value')
           .eq('user_id', _userId!)
+          .eq('type', 'heart_rate')
           .order('timestamp', ascending: false)
           .limit(1)
           .maybeSingle();
 
-      final hr = response?['heart_rate'];
+      final value = response?['value'] as Map<String, dynamic>?;
+      final hr = value?['heart_rate'];
       if (hr != null) _updateStats(heartRate: '$hr bpm');
     } catch (_) {}
   }
@@ -163,22 +169,23 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab> {
   Future<void> _loadExerciseCompletionStatus() async {
     if (_userId == null) return;
     try {
-      final today = DateTime.now();
-      final dateStr =
-          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-      final todayKey = _getDayKey(DateFormat('EEEE', 'id_ID').format(today));
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day).toUtc();
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+      final todayKey = DateFormat('EEEE', 'id_ID').format(now).toLowerCase();
 
       final response = await _supabase
-          .from('exercise_progress')
-          .select('day, completed')
+          .from('rehab_exercise_logs')
+          .select('id')
           .eq('user_id', _userId!)
-          .eq('date', dateStr)
-          .eq('day', todayKey)
+          .eq('is_aborted', false)
+          .gte('completed_at', startOfDay.toIso8601String())
+          .lt('completed_at', endOfDay.toIso8601String())
           .maybeSingle();
 
-      if (mounted && response != null) {
+      if (mounted) {
         setState(() {
-          _exerciseCompletionStatus[todayKey] = response['completed'] ?? false;
+          _exerciseCompletionStatus[todayKey] = response != null;
         });
       }
     } catch (e) {
@@ -186,19 +193,6 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab> {
         debugPrint('Error loading exercise status: $e');
       }
     }
-  }
-
-  String _getDayKey(String day) {
-    final dayMap = {
-      'Senin': 'monday',
-      'Selasa': 'tuesday',
-      'Rabu': 'wednesday',
-      'Kamis': 'thursday',
-      'Jumat': 'friday',
-      'Sabtu': 'saturday',
-      'Minggu': 'sunday',
-    };
-    return dayMap[day] ?? day.toLowerCase();
   }
 
   void _updateStats({String? heartRate}) {
@@ -237,293 +231,323 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
-    // Pasangkan padding dengan tinggi navbar melayang (60px) + margin (20px)
-    final bottomPadding = MediaQuery.of(context).padding.bottom + 80;
+    // Pasangkan padding dengan tinggi navbar melayang yang lebih tinggi
+    final bottomPadding = MediaQuery.of(context).padding.bottom + 96;
 
     return Consumer<LanguageProvider>(
       builder: (context, lang, _) {
-        return ListView(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
-          children: [
-            // Komponen Greeting & Heart Rate Realtime
-            StreamBuilder<DashboardStats>(
-              stream: _statsStream,
-              builder: (context, snapshot) {
-                final stats = snapshot.data ?? DashboardStats.empty();
-                final bpm = _parseHeartRate(stats.heartRate);
-
-                return GreetingWithHeartRate(
-                  name: _userName,
-                  photoUrl: _photoUrl,
-                  heartRate: stats.heartRate,
-                  status: _heartRateStatus(bpm, lang),
-                  isDark: isDark,
-                );
-              },
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: isDark
+                  ? [const Color(0xFF0F172A), const Color(0xFF020617)]
+                  : [const Color(0xFFF0F9FF), Colors.white],
             ),
-            const SizedBox(height: 16),
+          ),
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
+            children: [
+              // Komponen Greeting & Heart Rate Realtime dalam kartu yang lebih menonjol
+              StreamBuilder<DashboardStats>(
+                stream: _statsStream,
+                builder: (context, snapshot) {
+                  final stats = snapshot.data ?? DashboardStats.empty();
+                  final bpm = _parseHeartRate(stats.heartRate);
 
-            // Search Bar (Pencarian Fitur/Layanan)
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: lang.translate({
-                  'id': 'Cari dokter, obat, atau kebutuhan...',
-                  'en': 'Search for doctors, medicine, or needs...',
-                  'ms': 'Cari doktor, ubat, atau keperluan...',
-                }),
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: isDark ? Colors.grey[800] : Colors.grey[100],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
+                  return GreetingWithHeartRate(
+                    name: _userName,
+                    photoUrl: _photoUrl,
+                    heartRate: stats.heartRate,
+                    status: _heartRateStatus(bpm, lang),
+                    isDark: isDark,
+                  );
+                },
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
-            // Section: Pengingat Obat (Checklist harian)
-            if (_reminders.isNotEmpty) ...[
-              _SectionHeader(title: lang.translate({
-                'id': 'Pengingat Obat',
-                'en': 'Medication Reminder',
-                'ms': 'Peringatan Ubat',
-              })),
-              const SizedBox(height: 8),
-              Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Column(
-                  children: _reminders.map((reminder) => ListTile(
-                    leading: Checkbox(
-                      value: reminder.taken,
-                      onChanged: (_) => _toggleMedication(reminder),
-                    ),
-                    title: Text(reminder.name, style: TextStyle(
-                      decoration: reminder.taken ? TextDecoration.lineThrough : null,
-                    )),
-                    subtitle: Text(reminder.time.format(context)),
-                  )).toList(),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // Komponen Edukasi Stroke
-            _SectionHeader(title: lang.translate({
-              'id': 'Edukasi Kesehatan',
-              'en': 'Health Education',
-              'ms': 'Pendidikan Kesihatan',
-            })),
-            const SizedBox(height: 8),
-            StrokeEducationCard(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const StrokeEducationScreen()),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Section: Tenaga Medis (Apoteker & Dokter)
-            _buildHealthcareSection(lang),
-            const SizedBox(height: 16),
-
-            // Section: Akses Cepat
-            _SectionHeader(title: lang.translate({
-              'id': 'Layanan Utama',
-              'en': 'Main Services',
-              'ms': 'Perkhidmatan Utama',
-            })),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: QuickActionCard(
-                    icon: Icons.chat_bubble_rounded,
-                    label: lang.translate({
-                      'id': 'Chat Apoteker',
-                      'en': 'Pharmacist Chat',
-                      'ms': 'Sembang Ahli Farmasi',
-                    }),
-                    color: Colors.teal,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const PatientChatDashboardScreen()),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: QuickActionCard(
-                    icon: Icons.medication_liquid_rounded,
-                    label: lang.translate({
-                      'id': 'Pengingat Obat',
-                      'en': 'Medicine Reminder',
-                      'ms': 'Peringatan Ubat',
-                    }),
-                    color: Colors.indigo,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const MedicationReminderScreen()),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Section: RS Terdekat (Emergency)
-            _SectionHeader(title: lang.translate({
-              'id': 'Bantuan Darurat',
-              'en': 'Emergency Help',
-              'ms': 'Bantuan Kecemasan',
-            })),
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const EmergencyLocationScreen()),
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(16),
+              // Search Bar (Pencarian Fitur/Layanan) dalam kartu modern
+              Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.red.shade400, Colors.red.shade700],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
+                  color: isDark ? const Color(0xFF111827) : Colors.white,
+                  borderRadius: BorderRadius.circular(18),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.red.withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
+                      color: Colors.black.withOpacity(isDark ? 0.4 : 0.06),
+                      blurRadius: 18,
+                      offset: const Offset(0, 10),
                     ),
                   ],
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.local_hospital_rounded, color: Colors.white, size: 28),
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: lang.translate({
+                      'id': 'Cari dokter, obat, atau kebutuhan...',
+                      'en': 'Search for doctors, medicine, or needs...',
+                      'ms': 'Cari doktor, ubat, atau keperluan...',
+                    }),
+                    prefixIcon: const Icon(Icons.search),
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF030712) : const Color(0xFFF3F4F6),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            lang.translate({
-                              'id': 'Lokasi RS Terdekat',
-                              'en': 'Nearest Hospital',
-                              'ms': 'Hospital Terdekat',
-                            }),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            lang.translate({
-                              'id': 'Cari bantuan dalam radius 20km',
-                              'en': 'Find help within 20km radius',
-                              'ms': 'Cari bantuan dalam radius 20km',
-                            }),
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 18),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 18),
 
-            const SizedBox(height: 24),
-
-            // Section: Fitur Rehabilitasi & Latihan
-            _SectionHeader(title: lang.translate({
-              'id': 'Fitur Utama',
-              'en': 'Main Features',
-              'ms': 'Ciri Utama',
-            })),
-            const SizedBox(height: 12),
-            GridView.count(
-              physics: const NeverScrollableScrollPhysics(),
-              shrinkWrap: true,
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.1,
-              children: [
-                FeatureCard(
-                  icon: Icons.fitness_center_rounded,
-                  label: lang.translate({
-                    'id': 'Latihan',
-                    'en': 'Exercise',
-                    'ms': 'Latihan',
-                  }),
-                  desc: lang.translate({
-                    'id': 'Program fisik harian',
-                    'en': 'Daily physical program',
-                    'ms': 'Program fizikal harian',
-                  }),
-                  color: Colors.green,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ExerciseScreen()),
+              // Section: Pengingat Obat (Checklist harian)
+              if (_reminders.isNotEmpty) ...[
+                _SectionHeader(title: lang.translate({
+                  'id': 'Pengingat Obat',
+                  'en': 'Medication Reminder',
+                  'ms': 'Peringatan Ubat',
+                })),
+                const SizedBox(height: 8),
+                Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  child: Column(
+                    children: _reminders.map((reminder) => ListTile(
+                      leading: Checkbox(
+                        value: reminder.taken,
+                        onChanged: (_) => _toggleMedication(reminder),
+                      ),
+                      title: Text(
+                        reminder.name,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          decoration: reminder.taken ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                      subtitle: Text(reminder.time.format(context)),
+                    )).toList(),
                   ),
                 ),
-                FeatureCard(
-                  icon: Icons.health_and_safety_rounded,
-                  label: lang.translate({
-                    'id': 'Rehabilitasi',
-                    'en': 'Rehabilitation',
-                    'ms': 'Rehabilitasi',
-                  }),
-                  desc: lang.translate({
-                    'id': 'Program kognitif',
-                    'en': 'Cognitive program',
-                    'ms': 'Program kognitif',
-                  }),
-                  color: Colors.purple,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const RehabDashboardScreen()),
-                  ),
-                ),
-                FeatureCard(
-                  icon: Icons.monitor_heart_rounded,
-                  label: lang.translate({
-                    'id': 'Monitoring',
-                    'en': 'Monitoring',
-                    'ms': 'Pemantauan',
-                  }),
-                  desc: lang.translate({
-                    'id': 'Tensi & Gula Darah',
-                    'en': 'Pressure & Blood Sugar',
-                    'ms': 'Tekanan & Gula Darah',
-                  }),
-                  color: Colors.blue,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const HealthMonitoringScreen()),
-                  ),
-                ),
+                const SizedBox(height: 18),
               ],
-            ),
-          ],
+
+              // Komponen Edukasi Stroke
+              _SectionHeader(title: lang.translate({
+                'id': 'Edukasi Kesehatan',
+                'en': 'Health Education',
+                'ms': 'Pendidikan Kesihatan',
+              })),
+              const SizedBox(height: 8),
+              StrokeEducationCard(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const StrokeEducationScreen()),
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Section: Tenaga Medis (Apoteker & Dokter)
+              _buildHealthcareSection(lang),
+              const SizedBox(height: 18),
+
+              // Section: Akses Cepat
+              _SectionHeader(title: lang.translate({
+                'id': 'Layanan Utama',
+                'en': 'Main Services',
+                'ms': 'Perkhidmatan Utama',
+              })),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: QuickActionCard(
+                      icon: Icons.chat_bubble_rounded,
+                      label: lang.translate({
+                        'id': 'Chat Apoteker',
+                        'en': 'Pharmacist Chat',
+                        'ms': 'Sembang Ahli Farmasi',
+                      }),
+                      color: Colors.teal,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PatientChatDashboardScreen()),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: QuickActionCard(
+                      icon: Icons.medication_liquid_rounded,
+                      label: lang.translate({
+                        'id': 'Pengingat Obat',
+                        'en': 'Medicine Reminder',
+                        'ms': 'Peringatan Ubat',
+                      }),
+                      color: Colors.indigo,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MedicationReminderScreen()),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 18),
+
+              // Section: RS Terdekat (Emergency)
+              _SectionHeader(title: lang.translate({
+                'id': 'Bantuan Darurat',
+                'en': 'Emergency Help',
+                'ms': 'Bantuan Kecemasan',
+              })),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const EmergencyLocationScreen()),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.red.shade400, Colors.red.shade700],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.red.withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.local_hospital_rounded, color: Colors.white, size: 28),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              lang.translate({
+                                'id': 'Lokasi RS Terdekat',
+                                'en': 'Nearest Hospital',
+                                'ms': 'Hospital Terdekat',
+                              }),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              lang.translate({
+                                'id': 'Cari bantuan dalam radius 20km',
+                                'en': 'Find help within 20km radius',
+                                'ms': 'Cari bantuan dalam radius 20km',
+                              }),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 18),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Section: Fitur Rehabilitasi & Latihan
+              _SectionHeader(title: lang.translate({
+                'id': 'Fitur Utama',
+                'en': 'Main Features',
+                'ms': 'Ciri Utama',
+              })),
+              const SizedBox(height: 12),
+              GridView.count(
+                physics: const NeverScrollableScrollPhysics(),
+                shrinkWrap: true,
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1.1,
+                children: [
+                  FeatureCard(
+                    icon: Icons.fitness_center_rounded,
+                    label: lang.translate({
+                      'id': 'Latihan',
+                      'en': 'Exercise',
+                      'ms': 'Latihan',
+                    }),
+                    desc: lang.translate({
+                      'id': 'Program fisik harian',
+                      'en': 'Daily physical program',
+                      'ms': 'Program fizikal harian',
+                    }),
+                    color: Colors.green,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ExerciseScreen()),
+                    ),
+                  ),
+                  FeatureCard(
+                    icon: Icons.health_and_safety_rounded,
+                    label: lang.translate({
+                      'id': 'Rehabilitasi',
+                      'en': 'Rehabilitation',
+                      'ms': 'Rehabilitasi',
+                    }),
+                    desc: lang.translate({
+                      'id': 'Program kognitif',
+                      'en': 'Cognitive program',
+                      'ms': 'Program kognitif',
+                    }),
+                    color: Colors.purple,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const RehabDashboardScreen()),
+                    ),
+                  ),
+                  FeatureCard(
+                    icon: Icons.monitor_heart_rounded,
+                    label: lang.translate({
+                      'id': 'Monitoring',
+                      'en': 'Monitoring',
+                      'ms': 'Pemantauan',
+                    }),
+                    desc: lang.translate({
+                      'id': 'Tensi & Gula Darah',
+                      'en': 'Pressure & Blood Sugar',
+                      'ms': 'Tekanan & Gula Darah',
+                    }),
+                    color: Colors.blue,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const HealthMonitoringScreen()),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         );
       },
     );

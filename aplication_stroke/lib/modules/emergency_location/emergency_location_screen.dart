@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class EmergencyLocationScreen extends StatefulWidget {
@@ -78,6 +79,9 @@ class _EmergencyLocationScreenState extends State<EmergencyLocationScreen> {
       );
       _currentLatLng = LatLng(pos.latitude, pos.longitude);
 
+      // Log to database
+      _logEmergency(pos.latitude, pos.longitude);
+
       _markers.add(
         Marker(
           markerId: const MarkerId("you"),
@@ -98,6 +102,24 @@ class _EmergencyLocationScreenState extends State<EmergencyLocationScreen> {
         _loadingLocation = false;
         _error = "Gagal mendapatkan lokasi: $e";
       });
+    }
+  }
+
+  Future<void> _logEmergency(double lat, double lng) async {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await supabase.from('emergency_logs').insert({
+        'user_id': user.id,
+        'location_lat': lat,
+        'location_long': lng,
+        'status': 'active',
+      });
+      debugPrint("SOS: Emergency log created for user ${user.id}");
+    } catch (e) {
+      debugPrint("SOS: Failed to log emergency: $e");
     }
   }
 

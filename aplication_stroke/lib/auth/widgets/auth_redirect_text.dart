@@ -1,9 +1,8 @@
+import '../login_screen.dart';
 import 'package:flutter/material.dart';
-
 import '../register_screen.dart';
 import '../login_screen.dart';
 
-/// Teks navigasi untuk berpindah antara halaman Login dan Register.
 class AuthRedirectText extends StatelessWidget {
   final bool isLogin;
 
@@ -15,7 +14,7 @@ class AuthRedirectText extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          isLogin ? "Belum punya akun? " : "Sudah punya akun? ",
+          isLogin ? "Belum punya Akun? " : "Sudah punya Akun? ",
           style: const TextStyle(fontSize: 14),
         ),
         GestureDetector(
@@ -27,17 +26,15 @@ class AuthRedirectText extends StatelessWidget {
                   ),
                 )
               : () => Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const LoginScreen(),
-                    ),
-                  ),
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                ),
           child: Text(
             isLogin ? "Register" : "Login",
             style: const TextStyle(
               fontSize: 14,
-              fontWeight: FontWeight.bold,
               color: Colors.blue,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ),
@@ -45,4 +42,3 @@ class AuthRedirectText extends StatelessWidget {
     );
   }
 }
-

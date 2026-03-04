@@ -33,15 +33,25 @@ class MedicationReminder {
     return MedicationReminder(
       id: map['id'].toString(),
       name: map['name']?.toString() ?? '',
-      dose: map['dose']?.toString(),
-      note: map['note']?.toString(),
+      dose: null, // Scema doesn't have dose
+      note: null, // Schema doesn't have note
       time: TimeOfDay(hour: hour, minute: minute),
-      period: map['period']?.toString() ?? 'Semua',
+      period: 'Semua', // Default for UI
       taken: map['taken'] as bool? ?? false,
-      isActive: map['is_active'] as bool? ?? true,
+      isActive: true, // Default
       currentStock: map['current_stock'] as int? ?? 0,
       totalStock: map['total_stock'] as int? ?? 0,
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'time': '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
+      'taken': taken,
+      'total_stock': totalStock,
+      'current_stock': currentStock,
+    };
   }
 }
 

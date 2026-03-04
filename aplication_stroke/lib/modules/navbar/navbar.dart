@@ -51,27 +51,27 @@ class _PillNavbar extends StatelessWidget {
 
     return Container(
       // Margin bawah agar terlihat melayang di atas gesture bar / navigasi HP
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: SafeArea(
         top: false,
         child: Container(
-          height: 64, // Lebih tinggi agar lebih proporsional
-          margin: const EdgeInsets.fromLTRB(40, 0, 40, 24), // Berjarak dari kiri-kanan agar ramping ke tengah
+          height: 76, // dibuat sedikit lebih tinggi
+          margin: const EdgeInsets.fromLTRB(32, 0, 32, 12), // sedikit lebih ramping
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF252525) : Colors.white,
-            borderRadius: BorderRadius.circular(36), // Pill-shaped
+            borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
+                color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                blurRadius: 22,
+                offset: const Offset(0, 10),
               ),
             ],
-            border: isDark 
-                ? Border.all(color: Colors.white.withOpacity(0.05), width: 0.5)
-                : Border.all(color: Colors.black.withOpacity(0.05), width: 0.5),
+            border: isDark
+                ? Border.all(color: Colors.white.withOpacity(0.06), width: 0.5)
+                : Border.all(color: Colors.black.withOpacity(0.04), width: 0.5),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -127,19 +127,24 @@ class _NavPillItem extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.all(12),
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
           color: isActive ? activeColor.withOpacity(0.12) : Colors.transparent,
-          shape: BoxShape.circle,
+          borderRadius: BorderRadius.circular(14),
+          border: isActive
+              ? Border.all(color: activeColor, width: 1.4)
+              : null,
         ),
+        alignment: Alignment.center,
         child: Icon(
-          icon, 
-          size: 26, 
-          color: isActive ? activeColor : inactive
+          icon,
+          size: 24,
+          color: isActive ? activeColor : inactive,
         ),
       ),
     );
@@ -166,46 +171,53 @@ class _ProfileNavItem extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.all(8),
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
           color: isActive ? activeColor.withOpacity(0.12) : Colors.transparent,
-          shape: BoxShape.circle,
+          borderRadius: BorderRadius.circular(14),
+          border: isActive
+              ? Border.all(color: activeColor, width: 1.4)
+              : null,
         ),
+        alignment: Alignment.center,
         child: Container(
-          width: 32,
-          height: 32,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
               color: isActive ? activeColor : Colors.transparent,
               width: 1.5,
             ),
-            boxShadow: isActive ? [
-              BoxShadow(
-                color: activeColor.withOpacity(0.2),
-                blurRadius: 8,
-              )
-            ] : [],
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: activeColor.withOpacity(0.2),
+                      blurRadius: 8,
+                    )
+                  ]
+                : [],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             child: (photoUrl != null && photoUrl!.isNotEmpty)
                 ? Image.network(
-                    photoUrl!, 
+                    photoUrl!,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Icon(
                       Icons.person_rounded,
-                      size: 20,
+                      size: 18,
                       color: isActive ? activeColor : inactive,
                     ),
                   )
                 : Icon(
                     Icons.person_rounded,
-                    size: 20,
+                    size: 18,
                     color: isActive ? activeColor : inactive,
                   ),
           ),

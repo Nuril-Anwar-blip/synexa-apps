@@ -26,20 +26,27 @@ class RehabService {
     return RehabPhase.fromMap(response);
   }
 
-  /// Mengambil daftar latihan untuk fase dan kategori waktu tertentu.
-  Future<List<RehabExercise>> getExercises(int phaseId, String timeCategory) async {
+  /// Mengambil daftar latihan untuk fase tertentu.
+  Future<List<RehabExercise>> getExercises(int phaseId) async {
     final response = await _supabase
         .from('rehab_exercises')
         .select()
         .eq('phase_id', phaseId)
-        .eq('time_category', timeCategory);
+        .order('name');
     
     return (response as List)
         .map((e) => RehabExercise.fromMap(e as Map<String, dynamic>))
         .toList();
   }
 
-  /// Mencatat log penyelesaian latihan.
+  /// Mencatat log aktivitas terakhir.
+  Future<void> logActivity(String userId) async {
+    await _supabase.from('rehab_user_progress').update({
+      'phase_started_at': DateTime.now().toIso8601String(),
+    }).eq('user_id', userId);
+  }
+
+  /// Mencatat penyelesaian sesi latihan ke log latihan.
   Future<void> logExerciseCompletion({
     required String userId,
     required String exerciseId,
@@ -53,45 +60,7 @@ class RehabService {
       'duration_actual_seconds': durationActualSeconds,
       'is_aborted': isAborted,
       'abort_reason': abortReason,
+      'completed_at': DateTime.now().toIso8601String(),
     });
-  }
-
-  /// Mengambil pertanyaan quiz untuk transisi dari phaseId tertentu.
-  Future<List<RehabQuizQuestion>> getQuizQuestions(int phaseId) async {
-    final response = await _supabase
-        .from('rehab_quiz_questions')
-        .select()
-        .eq('from_phase_id', phaseId)
-        .order('order_index');
-    
-    return (response as List)
-        .map((q) => RehabQuizQuestion.fromMap(q as Map<String, dynamic>))
-        .toList();
-  }
-
-  /// Mengirim hasil quiz dan mengupdate progress jika lulus.
-  Future<void> submitQuizResult({
-    required String userId,
-    required int fromPhaseId,
-    required int score,
-    required bool passed,
-    required Map<String, dynamic> responses,
-  }) async {
-    await _supabase.from('rehab_quiz_attempts').insert({
-      'user_id': userId,
-      'from_phase_id': fromPhaseId,
-      'score': score,
-      'passed': passed,
-      'responses': responses,
-    });
-
-    if (passed) {
-      // Update ke fase berikutnya
-      await _supabase.from('rehab_user_progress').update({
-        'current_phase_id': fromPhaseId + 1,
-        'phase_started_at': DateTime.now().toIso8601String(),
-        'last_quiz_at': DateTime.now().toIso8601String(),
-      }).eq('user_id', userId);
-    }
   }
 }

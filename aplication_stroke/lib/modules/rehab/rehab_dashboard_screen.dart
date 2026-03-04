@@ -14,13 +14,11 @@ class RehabDashboardScreen extends StatefulWidget {
 class _RehabDashboardScreenState extends State<RehabDashboardScreen> {
   final RehabService _rehabService = RehabService();
   final String _userId = Supabase.instance.client.auth.currentUser?.id ?? '';
-  
+
   bool _isLoading = true;
-  RehabProgress? _progress;
+  List<RehabExercise> _exercises = [];
   RehabPhase? _currentPhase;
-  List<RehabExercise> _morningExercises = [];
-  List<RehabExercise> _afternoonExercises = [];
-  List<RehabExercise> _eveningExercises = [];
+  RehabProgress? _progress;
 
   @override
   void initState() {
@@ -31,12 +29,20 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      _progress = await _rehabService.getUserProgress(_userId);
-      if (_progress != null) {
-        _currentPhase = await _rehabService.getPhaseDetail(_progress!.currentPhaseId);
-        _morningExercises = await _rehabService.getExercises(_progress!.currentPhaseId, 'pagi');
-        _afternoonExercises = await _rehabService.getExercises(_progress!.currentPhaseId, 'siang');
-        _eveningExercises = await _rehabService.getExercises(_progress!.currentPhaseId, 'sore');
+      if (_userId.isEmpty) {
+        _progress = null;
+        _exercises = [];
+      } else {
+        _progress = await _rehabService.getUserProgress(_userId);
+        if (_progress != null) {
+          _currentPhase =
+              await _rehabService.getPhaseDetail(_progress!.currentPhaseId);
+          _exercises =
+              await _rehabService.getExercises(_progress!.currentPhaseId);
+        } else {
+          _currentPhase = null;
+          _exercises = [];
+        }
       }
     } catch (e) {
       debugPrint('Error loading rehab data: $e');
@@ -69,14 +75,43 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen> {
           const Text('Belum ada program aktif.'),
           const SizedBox(height: 8),
           ElevatedButton(
-            onPressed: () {
-              // Logic to start initial phase
-            },
+            onPressed: _startInitialProgram,
             child: const Text('Mulai Program'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _startInitialProgram() async {
+    if (_userId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Silakan login terlebih dahulu.')),
+      );
+      return;
+    }
+    try {
+      await Supabase.instance.client.from('rehab_user_progress').upsert(
+        {
+          'user_id': _userId,
+          'current_phase_id': 1,
+          'phase_started_at': DateTime.now().toIso8601String(),
+          'streak_count': 0,
+        },
+        onConflict: 'user_id',
+      );
+      await _loadData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Program fase 1 dimulai.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memulai program: $e')),
+      );
+    }
   }
 
   Widget _buildDashboard() {
@@ -85,9 +120,7 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen> {
       children: [
         _buildProgressCard(),
         const SizedBox(height: 24),
-        _buildExerciseSection('Pagi', _morningExercises, Icons.wb_sunny_outlined, Colors.orange),
-        _buildExerciseSection('Siang', _afternoonExercises, Icons.wb_cloudy_outlined, Colors.yellow.shade700),
-        _buildExerciseSection('Sore', _eveningExercises, Icons.nights_stay_outlined, Colors.indigo),
+        _buildExerciseSection('Latihan Hari Ini', _exercises, Icons.fitness_center, Colors.blue),
       ],
     );
   }
@@ -126,37 +159,15 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen> {
                     ),
                   ],
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.fireplace, color: Colors.orange, size: 20),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${_progress?.streakCount ?? 0} Hari',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
+                // Streak count removed as not in schema
               ],
             ),
             const SizedBox(height: 20),
             LinearProgressIndicator(
-              value: 0.3, // Dummy progress
+              value: 0.1, // Fixed dummy for now
               backgroundColor: Colors.white24,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
               minHeight: 8,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Anda sedang di minggu ke-2 fase ini',
-              style: TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ],
         ),

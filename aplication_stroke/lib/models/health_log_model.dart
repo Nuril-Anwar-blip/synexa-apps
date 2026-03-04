@@ -24,8 +24,13 @@ class HealthLog {
       id: map['id'] as String?,
       userId: map['user_id'] as String,
       logType: map['log_type'] as String,
-      valueSystolic: map['value_systolic'] as int?,
-      valueDiastolic: map['value_diastolic'] as int?,
+      // Map systolic/diastolic from value_text if BP
+      valueSystolic: map['log_type'] == 'blood_pressure' && map['value_text'] != null
+          ? int.tryParse(map['value_text'].split('/')[0])
+          : null,
+      valueDiastolic: map['log_type'] == 'blood_pressure' && map['value_text'] != null && map['value_text'].contains('/')
+          ? int.tryParse(map['value_text'].split('/')[1])
+          : null,
       valueNumeric: (map['value_numeric'] as num?)?.toDouble(),
       note: map['note'] as String?,
       recordedAt: DateTime.parse(map['recorded_at']),
@@ -37,9 +42,8 @@ class HealthLog {
       if (id != null) 'id': id,
       'user_id': userId,
       'log_type': logType,
-      'value_systolic': valueSystolic,
-      'value_diastolic': valueDiastolic,
       'value_numeric': valueNumeric,
+      'value_text': logType == 'blood_pressure' ? '$valueSystolic/$valueDiastolic' : null,
       'note': note,
       'recorded_at': recordedAt.toIso8601String(),
     };

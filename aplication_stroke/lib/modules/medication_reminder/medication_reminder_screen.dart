@@ -190,11 +190,10 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
         final payload = {
           'user_id': _userId,
           'name': name,
-          'dose': dose,
-          'note': note,
           'time': _toDbTime(time),
-          'period': _resolvePeriod(time),
           'taken': false,
+          'total_stock': result['total_stock'] ?? 0,
+          'current_stock': result['current_stock'] ?? 0,
         };
 
         final inserted = await _supabase

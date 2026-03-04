@@ -30,15 +30,19 @@ class Post {
 
   /// Membuat instance [Post] dari Map data Supabase.
   factory Post.fromMap(Map<String, dynamic> map) {
+    // Schema mapping: image_url -> media_url
+    // Joined data: users { full_name, photo_url }
+    final userData = map['users'] as Map<String, dynamic>?;
+    
     return Post(
       id: map['id'],
       userId: map['user_id'],
-      userName: map['user_full_name'] ?? 'Nama Pengguna',
-      userAvatarUrl: map['user_avatar_url'] ?? '',
+      userName: userData?['full_name'] ?? map['user_full_name'] ?? 'Nama Pengguna',
+      userAvatarUrl: userData?['photo_url'] ?? map['user_avatar_url'] ?? '',
       createdAt: DateTime.parse(map['created_at']),
       content: map['content'] ?? '',
-      media_url: map['media_url'],
-      media_type: map['media_type'],
+      media_url: map['image_url'] ?? map['media_url'],
+      media_type: map['media_type'] ?? 'image',
       commentCount: map['comment_count']?.toInt() ?? 0,
       likeCount: map['like_count']?.toInt() ?? 0,
       userHasLiked: map['user_has_liked'] ?? false,

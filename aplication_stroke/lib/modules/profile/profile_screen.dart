@@ -8,7 +8,7 @@ import '../../extensions/user_model_extension.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/language_provider.dart';
 import 'edit_profile_screen.dart';
-import '../auth/login_screen.dart';
+import '../../auth/login_screen.dart';
 import '../pairing_scanner/pairing_scanner_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -110,7 +110,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       debugPrint("🎉 LOG UPDATE: SUKSES memperbarui data di Supabase.");
     } catch (e) {
-      debugPrint("❌ LOG UPDATE ERROR: Gagal saat memanggil .update() Supabase: $e");
+      debugPrint(
+        "❌ LOG UPDATE ERROR: Gagal saat memanggil .update() Supabase: $e",
+      );
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -189,14 +191,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Pilih Jenis Font'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: fonts.map((font) => ListTile(
-            title: Text(font, style: GoogleFonts.getFont(font)),
-            trailing: themeProvider.fontFamily == font ? const Icon(Icons.check, color: Colors.teal) : null,
-            onTap: () {
-              themeProvider.setFontFamily(font);
-              Navigator.pop(context);
-            },
-          )).toList(),
+          children: fonts
+              .map(
+                (font) => ListTile(
+                  title: Text(font, style: GoogleFonts.getFont(font)),
+                  trailing: themeProvider.fontFamily == font
+                      ? const Icon(Icons.check, color: Colors.teal)
+                      : null,
+                  onTap: () {
+                    themeProvider.setFontFamily(font);
+                    Navigator.pop(context);
+                  },
+                ),
+              )
+              .toList(),
         ),
       ),
     );
@@ -220,7 +228,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   min: 0.8,
                   max: 1.4,
                   divisions: 3,
-                  label: themeProvider.fontSize == 0.8 ? 'Kecil' : (themeProvider.fontSize == 1.0 ? 'Normal' : (themeProvider.fontSize == 1.2 ? 'Besar' : 'Sangat Besar')),
+                  label: themeProvider.fontSize == 0.8
+                      ? 'Kecil'
+                      : (themeProvider.fontSize == 1.0
+                            ? 'Normal'
+                            : (themeProvider.fontSize == 1.2
+                                  ? 'Besar'
+                                  : 'Sangat Besar')),
                   onChanged: (val) {
                     themeProvider.setFontSize(val);
                     setDialogState(() {});
@@ -234,20 +248,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Text('A', style: TextStyle(fontSize: 20)),
                     Text('A', style: TextStyle(fontSize: 24)),
                   ],
-                )
+                ),
               ],
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup'))
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Tutup'),
+              ),
             ],
           );
-        }
+        },
       ),
     );
   }
 
   /// Menampilkan dialog untuk memilih bahasa
-  void _showLanguageDialog(BuildContext context, LanguageProvider langProvider) {
+  void _showLanguageDialog(
+    BuildContext context,
+    LanguageProvider langProvider,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -255,9 +275,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildLanguageOption(context, langProvider, code: 'id', name: 'Bahasa Indonesia', flag: '🇮🇩'),
-            _buildLanguageOption(context, langProvider, code: 'en', name: 'English', flag: '🇺🇸'),
-            _buildLanguageOption(context, langProvider, code: 'ms', name: 'Melayu', flag: '🇲🇾'),
+            _buildLanguageOption(
+              context,
+              langProvider,
+              code: 'id',
+              name: 'Bahasa Indonesia',
+              flag: '🇮🇩',
+            ),
+            _buildLanguageOption(
+              context,
+              langProvider,
+              code: 'en',
+              name: 'English',
+              flag: '🇺🇸',
+            ),
+            _buildLanguageOption(
+              context,
+              langProvider,
+              code: 'ms',
+              name: 'Melayu',
+              flag: '🇲🇾',
+            ),
           ],
         ),
       ),
@@ -280,9 +318,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       onTap: () {
         langProvider.setLanguage(code);
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Bahasa diubah ke $name')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Bahasa diubah ke $name')));
       },
     );
   }
@@ -322,6 +360,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 children: [
                   const SizedBox(height: 12),
+
                   /// Widget hero untuk menampilkan informasi dasar profil pengguna.
                   _ProfileHero(
                     name: userModel!.fullNameUI,
@@ -433,11 +472,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             Consumer<LanguageProvider>(
                               builder: (context, langProvider, _) {
                                 return ListTile(
-                                  leading: const Icon(Icons.language_rounded, color: Colors.orange),
+                                  leading: const Icon(
+                                    Icons.language_rounded,
+                                    color: Colors.orange,
+                                  ),
                                   title: const Text('Bahasa'),
                                   subtitle: Text(langProvider.languageName),
                                   trailing: const Icon(Icons.chevron_right),
-                                  onTap: () => _showLanguageDialog(context, langProvider),
+                                  onTap: () => _showLanguageDialog(
+                                    context,
+                                    langProvider,
+                                  ),
                                 );
                               },
                             ),
@@ -446,27 +491,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 return Column(
                                   children: [
                                     ListTile(
-                                      leading: const Icon(Icons.font_download_rounded, color: Colors.blue),
+                                      leading: const Icon(
+                                        Icons.font_download_rounded,
+                                        color: Colors.blue,
+                                      ),
                                       title: const Text('Jenis Font'),
                                       subtitle: Text(themeProvider.fontFamily),
                                       trailing: const Icon(Icons.chevron_right),
-                                      onTap: () => _showFontDialog(context, themeProvider),
+                                      onTap: () => _showFontDialog(
+                                        context,
+                                        themeProvider,
+                                      ),
                                     ),
                                     ListTile(
-                                      leading: const Icon(Icons.format_size_rounded, color: Colors.green),
+                                      leading: const Icon(
+                                        Icons.format_size_rounded,
+                                        color: Colors.green,
+                                      ),
                                       title: const Text('Ukuran Teks'),
-                                      subtitle: Text(themeProvider.fontSize == 0.8 ? 'Kecil' : (themeProvider.fontSize == 1.0 ? 'Normal' : 'Besar')),
+                                      subtitle: Text(
+                                        themeProvider.fontSize == 0.8
+                                            ? 'Kecil'
+                                            : (themeProvider.fontSize == 1.0
+                                                  ? 'Normal'
+                                                  : 'Besar'),
+                                      ),
                                       trailing: const Icon(Icons.chevron_right),
-                                      onTap: () => _showFontSizeDialog(context, themeProvider),
+                                      onTap: () => _showFontSizeDialog(
+                                        context,
+                                        themeProvider,
+                                      ),
                                     ),
                                     SwitchListTile(
                                       secondary: Icon(
-                                        themeProvider.isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                                        color: themeProvider.isDarkMode ? Colors.purple : Colors.amber,
+                                        themeProvider.isDarkMode
+                                            ? Icons.dark_mode_rounded
+                                            : Icons.light_mode_rounded,
+                                        color: themeProvider.isDarkMode
+                                            ? Colors.purple
+                                            : Colors.amber,
                                       ),
-                                      title: Text(themeProvider.isDarkMode ? 'Mode Gelap' : 'Mode Terang'),
+                                      title: Text(
+                                        themeProvider.isDarkMode
+                                            ? 'Mode Gelap'
+                                            : 'Mode Terang',
+                                      ),
                                       value: themeProvider.isDarkMode,
-                                      onChanged: (val) => themeProvider.toggleTheme(),
+                                      onChanged: (val) =>
+                                          themeProvider.toggleTheme(),
                                     ),
                                   ],
                                 );
@@ -856,4 +928,3 @@ class _ProfileActionButton extends StatelessWidget {
     );
   }
 }
-

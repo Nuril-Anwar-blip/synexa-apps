@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:intl/intl.dart';
 
 /// Model untuk Rencana Latihan.
 /// Digunakan untuk mendefinisikan detail setiap jenis latihan pemulihan.
@@ -43,165 +42,81 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   bool _isInitLoading = true;
   String? _userId;
 
-  final List<ExercisePlan> _plans = [
-    ExercisePlan(
-      id: 'stretch_neck',
-      title: 'Peregangan Leher',
-      focus: 'Fleksibilitas',
-      durationMinutes: 5,
-      level: 'Ringan',
-      description:
-          'Gerakan perlahan untuk meredakan tegang otot leher dan bahu setelah duduk lama.',
-      equipment: 'Kursi stabil',
-      steps: [
-        'Duduk tegak, tarik napas dalam.',
-        'Miringkan kepala ke kanan selama 10 detik lalu ke kiri.',
-        'Tundukkan dagu ke dada, tahan 10 detik.',
-        'Putar bahu ke depan dan ke belakang 10 kali.',
-      ],
-    ),
-    ExercisePlan(
-      id: 'grip_work',
-      title: 'Latihan Genggaman',
-      focus: 'Kekuatan',
-      durationMinutes: 7,
-      level: 'Ringan',
-      description:
-          'Melatih genggaman tangan untuk membantu aktivitas harian seperti memegang gelas.',
-      equipment: 'Bola karet / hand gripper',
-      steps: [
-        'Pegang bola karet di telapak tangan.',
-        'Remas selama 3 detik lalu lepaskan perlahan.',
-        'Ulangi 12 kali untuk setiap tangan.',
-        'Lakukan 2 set dengan jeda 1 menit.',
-      ],
-    ),
-    ExercisePlan(
-      id: 'sit_stand',
-      title: 'Latihan Duduk-Berdiri',
-      focus: 'Keseimbangan',
-      durationMinutes: 8,
-      level: 'Sedang',
-      description:
-          'Meningkatkan kekuatan paha dan koordinasi tubuh bagian bawah.',
-      equipment: 'Kursi tanpa roda',
-      steps: [
-        'Duduk tegak dengan kaki menapak lantai.',
-        'Silangkan tangan di dada atau pegang kursi bila perlu.',
-        'Berdiri perlahan sambil menghembuskan napas.',
-        'Duduk kembali sambil menahan gerakan, ulangi 10 kali.',
-      ],
-    ),
-    ExercisePlan(
-      id: 'weight_shift',
-      title: 'Weight Shift',
-      focus: 'Koordinasi',
-      durationMinutes: 6,
-      level: 'Sedang',
-      description:
-          'Melatih perpindahan berat badan untuk mempersiapkan berjalan mandiri.',
-      equipment: 'Meja tinggi / sandaran',
-      steps: [
-        'Berdiri di belakang kursi dan pegang sandaran.',
-        'Pindahkan berat badan ke kaki kanan selama 5 detik.',
-        'Kembali ke tengah lalu pindahkan ke kaki kiri.',
-        'Tambahkan ayunan tangan kecil bila stabil.',
-      ],
-    ),
-    ExercisePlan(
-      id: 'march_place',
-      title: 'Latihan Jalan di Tempat',
-      focus: 'Kardio Ringan',
-      durationMinutes: 10,
-      level: 'Intens',
-      description:
-          'Meningkatkan stamina jantung dengan gerakan aman di dalam ruangan.',
-      equipment: 'Sepatu nyaman',
-      steps: [
-        'Berdiri tegak, tarik napas dalam.',
-        'Angkat lutut kanan setinggi pinggul, lalu turunkan.',
-        'Lakukan bergantian kiri dan kanan selama 2 menit.',
-        'Istirahat 30 detik, ulangi 3 kali.',
-      ],
-    ),
-    ExercisePlan(
-      id: 'arm_stretch',
-      title: 'Latihan Lengan Duduk',
-      focus: 'Mobilitas',
-      durationMinutes: 6,
-      level: 'Ringan',
-      description:
-          'Mengaktifkan otot bahu dan punggung atas untuk membantu aktivitas merapikan diri.',
-      equipment: 'Band elastis / handuk panjang',
-      steps: [
-        'Pegang band dengan kedua tangan sejajar bahu.',
-        'Tarik band ke luar sambil menahan bahu tetap rileks.',
-        'Tahan 3 detik lalu kembali ke posisi awal.',
-        'Ulangi 12 kali, istirahat, lalu ulangi 2 set.',
-      ],
-    ),
-  ];
+  final List<ExercisePlan> _plans = [];
 
   @override
   void initState() {
     super.initState();
     _userId = _supabase.auth.currentUser?.id;
-    _loadTodayProgress();
+    _initData();
   }
 
-  /// Memuat data progres latihan hari ini dari Supabase.
-  Future<void> _loadTodayProgress() async {
+  Future<void> _initData() async {
     if (_userId == null) return;
+    await _loadPhaseAndExercises();
+  }
 
+  /// Memuat fase pengguna dan daftar latihan dari database.
+  Future<void> _loadPhaseAndExercises() async {
     try {
-      final today = DateTime.now();
-      final dateStr = DateFormat('yyyy-MM-dd').format(today);
-
-      final response = await _supabase
-          .from('exercise_progress')
-          .select('exercise_id, completed')
+      // 1. Dapatkan fase saat ini
+      final progress = await _supabase
+          .from('rehab_user_progress')
+          .select('current_phase_id')
           .eq('user_id', _userId!)
-          .eq('date', dateStr);
+          .maybeSingle();
+      
+      final phaseId = progress?['current_phase_id'] ?? 1;
 
-      if (mounted && response != null) {
-        final List<dynamic> data = response;
+      // 2. Dapatkan latihan untuk fase tersebut
+      final exercises = await _supabase
+          .from('rehab_exercises')
+          .select()
+          .eq('phase_id', phaseId)
+          .order('name');
+      
+      if (mounted) {
         setState(() {
-          for (var item in data) {
-            final id = item['exercise_id'];
-            final completed = item['completed'] ?? false;
-            final planIndex = _plans.indexWhere((p) => p.id == id);
-            if (planIndex != -1) {
-              _plans[planIndex].isCompleted = completed;
-            }
+          _plans.clear();
+          for (var item in (exercises as List)) {
+            final durationSeconds = item['duration_seconds'] as int? ?? 600;
+            final rawInstructions = item['instructions'];
+            final List<String> steps = rawInstructions is List
+                ? rawInstructions.map((e) => e.toString()).toList()
+                : [item['duration_text']?.toString() ?? 'Lakukan sesuai petunjuk.'];
+            _plans.add(ExercisePlan(
+              id: item['id'].toString(),
+              title: item['name'] ?? '',
+              focus: 'Fase $phaseId',
+              durationMinutes: (durationSeconds / 60).round(),
+              level: 'Sesuai Fase',
+              description: item['duration_text'] ?? 'Ikuti instruksi latihan.',
+              steps: steps,
+              equipment: 'Tanpa alat',
+              isCompleted: false, // Tracking table missing in schema
+            ));
           }
           _isInitLoading = false;
         });
       }
     } catch (e) {
-      debugPrint('Error loading progress: $e');
+      debugPrint('Error loading exercises: $e');
       if (mounted) setState(() => _isInitLoading = false);
     }
   }
 
-  /// Memperbarui status penyelesaian latihan di Supabase.
+  /// Mencatat progres ke rehab_user_progress.
   Future<void> _updateSupabaseProgress(ExercisePlan plan) async {
     if (_userId == null) return;
-
     try {
-      final today = DateTime.now();
-      final dateStr = DateFormat('yyyy-MM-dd').format(today);
-      final dayKey = DateFormat('EEEE').format(today).toLowerCase();
-
-      await _supabase.from('exercise_progress').upsert({
+      await _supabase.from('rehab_exercise_logs').insert({
         'user_id': _userId,
-        'date': dateStr,
-        'day': dayKey,
         'exercise_id': plan.id,
-        'completed': plan.isCompleted,
-        'updated_at': DateTime.now().toIso8601String(),
-      }, onConflict: 'user_id, date, exercise_id');
+        'duration_actual_seconds': plan.durationMinutes * 60,
+        'is_aborted': false,
+      });
     } catch (e) {
-      debugPrint('Error updating supabase: $e');
+      debugPrint('Error updating progress: $e');
     }
   }
 

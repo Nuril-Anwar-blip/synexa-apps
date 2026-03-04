@@ -22,8 +22,8 @@ class Comment {
     return Comment(
       id: map['id'].toString(),
       content: map['content'] ?? '',
-      userName: map['profiles']?['full_name'] ?? 'Pengguna',
-      userAvatarUrl: map['profiles']?['photo_url'] ?? '',
+      userName: map['users']?['full_name'] ?? 'Pengguna',
+      userAvatarUrl: map['users']?['photo_url'] ?? '',
     );
   }
 }
@@ -54,7 +54,22 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         .stream(primaryKey: ['id'])
         .eq('post_id', widget.post.id)
         .order('created_at', ascending: true)
-        .map((maps) => maps.map((map) => Comment.fromMap(map)).toList());
+        .asyncMap((maps) async {
+          // Join manually for each comment since .stream() doesn't support joins
+          final List<Comment> comments = [];
+          for (var map in maps) {
+            final userResponse = await _supabase
+                .from('users')
+                .select('full_name, photo_url')
+                .eq('id', map['user_id'])
+                .maybeSingle();
+            
+            final fullMap = Map<String, dynamic>.from(map);
+            fullMap['users'] = userResponse;
+            comments.add(Comment.fromMap(fullMap));
+          }
+          return comments;
+        });
   }
 
   @override

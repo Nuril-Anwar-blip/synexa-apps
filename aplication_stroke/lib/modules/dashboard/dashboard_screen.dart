@@ -9,7 +9,7 @@ import 'package:aplication_stroke/modules/profile/profile_screen.dart';
 import 'widgets/enhanced_home_tab.dart';
 
 // Import Modular Components
-import 'package:aplication_stroke/modules/navbar/navbar.dart';
+import 'package:aplication_stroke/widgets/navbar.dart';
 
 /// Halaman Dashboard Utama
 /// 

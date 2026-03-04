@@ -1,7 +1,39 @@
 import 'package:flutter/material.dart';
+import '../../models/education_model.dart';
+import '../../services/remote/education_service.dart';
 
-class StrokeEducationScreen extends StatelessWidget {
+class StrokeEducationScreen extends StatefulWidget {
   const StrokeEducationScreen({super.key});
+
+  @override
+  State<StrokeEducationScreen> createState() => _StrokeEducationScreenState();
+}
+
+class _StrokeEducationScreenState extends State<StrokeEducationScreen> {
+  final EducationService _educationService = EducationService();
+  List<EducationContent> _dbContent = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEducation();
+  }
+
+  Future<void> _loadEducation() async {
+    try {
+      final data = await _educationService.getAllEducation();
+      if (mounted) {
+        setState(() {
+          _dbContent = data;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading education: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -11,209 +43,125 @@ class StrokeEducationScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Edukasi Stroke'),
-        actions: [
-          IconButton(
-            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-            onPressed: () {
-              // Toggle theme
-            },
-          ),
-        ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _SectionCard(
-            title: 'Apa itu Stroke?',
-            icon: Icons.health_and_safety_rounded,
-            color: Colors.red,
-            isDark: isDark,
-            children: [
-              _InfoText(
-                'Stroke adalah kondisi medis serius yang terjadi ketika aliran darah ke otak terganggu atau terputus. Hal ini dapat menyebabkan kerusakan sel-sel otak dan berpotensi mengakibatkan kecacatan permanen atau bahkan kematian.',
-              ),
-              const SizedBox(height: 12),
-              _Subtitle('Jenis-jenis Stroke:'),
-              const SizedBox(height: 8),
-              _BulletPoint(
-                'Stroke Iskemik: Terjadi ketika pembuluh darah tersumbat (80% kasus)',
-              ),
-              _BulletPoint(
-                'Stroke Hemoragik: Terjadi ketika pembuluh darah pecah (20% kasus)',
-              ),
-              _BulletPoint(
-                'TIA (Transient Ischemic Attack): Stroke ringan yang sembuh dalam 24 jam',
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: 'Tanda dan Gejala (FAST)',
-            icon: Icons.warning_rounded,
-            color: Colors.orange,
-            isDark: isDark,
-            children: [
-              _InfoText(
-                'Kenali tanda-tanda stroke dengan metode FAST untuk penanganan cepat:',
-              ),
-              const SizedBox(height: 16),
-              _FastItem(
-                'F',
-                'Face (Wajah)',
-                'Wajah mencong atau tidak simetris, salah satu sisi wajah terlihat turun',
-              ),
-              _FastItem(
-                'A',
-                'Arm (Lengan)',
-                'Lengan melemah atau mati rasa, sulit mengangkat kedua lengan',
-              ),
-              _FastItem(
-                'S',
-                'Speech (Bicara)',
-                'Bicara pelo, tidak jelas, atau sulit memahami pembicaraan',
-              ),
-              _FastItem(
-                'T',
-                'Time (Waktu)',
-                'Segera hubungi ambulans 119 atau bawa ke rumah sakit terdekat',
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: 'Faktor Risiko',
-            icon: Icons.medical_services_rounded,
-            color: Colors.purple,
-            isDark: isDark,
-            children: [
-              _Subtitle('Faktor yang Dapat Dikontrol:'),
-              const SizedBox(height: 8),
-              _BulletPoint('Tekanan darah tinggi (hipertensi)'),
-              _BulletPoint('Diabetes melitus'),
-              _BulletPoint('Kolesterol tinggi'),
-              _BulletPoint('Merokok'),
-              _BulletPoint('Obesitas'),
-              _BulletPoint('Kurang aktivitas fisik'),
-              _BulletPoint('Konsumsi alkohol berlebihan'),
-              const SizedBox(height: 16),
-              _Subtitle('Faktor yang Tidak Dapat Dikontrol:'),
-              const SizedBox(height: 8),
-              _BulletPoint('Usia (risiko meningkat setelah 55 tahun)'),
-              _BulletPoint('Jenis kelamin (pria lebih berisiko)'),
-              _BulletPoint('Riwayat keluarga stroke'),
-              _BulletPoint('Riwayat stroke sebelumnya'),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: 'Pencegahan',
-            icon: Icons.shield_rounded,
-            color: Colors.green,
-            isDark: isDark,
-            children: [
-              _Subtitle('1. Kontrol Tekanan Darah'),
-              _InfoText(
-                'Jaga tekanan darah di bawah 120/80 mmHg dengan diet sehat dan olahraga teratur.',
-              ),
-              const SizedBox(height: 12),
-              _Subtitle('2. Kelola Diabetes'),
-              _InfoText(
-                'Kontrol gula darah dengan diet, olahraga, dan obat sesuai anjuran dokter.',
-              ),
-              const SizedBox(height: 12),
-              _Subtitle('3. Pola Makan Sehat'),
-              _InfoText(
-                'Kurangi garam, lemak jenuh, dan gula. Perbanyak sayur, buah, dan biji-bijian.',
-              ),
-              const SizedBox(height: 12),
-              _Subtitle('4. Olahraga Teratur'),
-              _InfoText(
-                'Lakukan aktivitas fisik minimal 30 menit, 5 kali seminggu.',
-              ),
-              const SizedBox(height: 12),
-              _Subtitle('5. Berhenti Merokok'),
-              _InfoText('Merokok meningkatkan risiko stroke 2-4 kali lipat.'),
-              const SizedBox(height: 12),
-              _Subtitle('6. Batasi Alkohol'),
-              _InfoText(
-                'Konsumsi alkohol maksimal 1-2 gelas per hari untuk pria, 1 gelas untuk wanita.',
-              ),
-              const SizedBox(height: 12),
-              _Subtitle('7. Kelola Stres'),
-              _InfoText(
-                'Stres kronis dapat meningkatkan tekanan darah. Lakukan relaksasi dan meditasi.',
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: 'Penanganan',
-            icon: Icons.local_hospital_rounded,
-            color: Colors.blue,
-            isDark: isDark,
-            children: [
-              _Subtitle('Golden Period (3-4.5 Jam)'),
-              _InfoText(
-                'Penanganan dalam 3-4.5 jam pertama sangat krusial. Semakin cepat ditangani, semakin besar peluang pemulihan.',
-              ),
-              const SizedBox(height: 16),
-              _Subtitle('Langkah Penanganan:'),
-              const SizedBox(height: 8),
-              _NumberedPoint(
-                '1',
-                'Segera hubungi ambulans 119 atau bawa ke rumah sakit terdekat',
-              ),
-              _NumberedPoint(
-                '2',
-                'Jangan berikan makanan atau minuman (risiko tersedak)',
-              ),
-              _NumberedPoint('3', 'Jangan berikan obat tanpa resep dokter'),
-              _NumberedPoint('4', 'Catat waktu munculnya gejala pertama'),
-              _NumberedPoint(
-                '5',
-                'Bawa catatan medis dan daftar obat yang dikonsumsi',
-              ),
-              const SizedBox(height: 16),
-              _Subtitle('Perawatan di Rumah Sakit:'),
-              const SizedBox(height: 8),
-              _BulletPoint('Terapi trombolitik (untuk stroke iskemik)'),
-              _BulletPoint('Operasi (untuk stroke hemoragik)'),
-              _BulletPoint(
-                'Rehabilitasi: fisioterapi, terapi wicara, terapi okupasi',
-              ),
-              _BulletPoint('Obat-obatan: antikoagulan, antiplatelet, statin'),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: 'Rehabilitasi Pasca Stroke',
-            icon: Icons.fitness_center_rounded,
-            color: Colors.teal,
-            isDark: isDark,
-            children: [
-              _InfoText(
-                'Rehabilitasi penting untuk memulihkan fungsi tubuh dan meningkatkan kualitas hidup.',
-              ),
-              const SizedBox(height: 12),
-              _Subtitle('Jenis Rehabilitasi:'),
-              const SizedBox(height: 8),
-              _BulletPoint('Fisioterapi: Memulihkan gerakan dan keseimbangan'),
-              _BulletPoint(
-                'Terapi Wicara: Memulihkan kemampuan berbicara dan menelan',
-              ),
-              _BulletPoint(
-                'Terapi Okupasi: Memulihkan kemampuan aktivitas sehari-hari',
-              ),
-              _BulletPoint(
-                'Terapi Psikologis: Mengatasi depresi dan kecemasan',
-              ),
-            ],
-          ),
-          SizedBox(
-            height: MediaQuery.of(context).padding.bottom + 100,
-          ), // Space for navbar
-        ],
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                // 1. Konten dari Database (Baru)
+                if (_dbContent.isNotEmpty) ...[
+                  const _SectionHeader('Modul Edukasi Terbaru'),
+                  const SizedBox(height: 12),
+                  ..._dbContent.map((content) => Column(
+                        children: [
+                          _SectionCard(
+                            title: content.title,
+                            icon: Icons.article_rounded,
+                            color: Colors.blue,
+                            isDark: isDark,
+                            children: [
+                              if (content.imageUrl != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.network(
+                                      content.imageUrl!,
+                                      width: double.infinity,
+                                      height: 180,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        height: 180,
+                                        color: Colors.grey[300],
+                                        child: const Icon(Icons.image_not_supported),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              _InfoText(content.content),
+                              if (content.category != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Chip(
+                                      label: Text(
+                                        content.category!,
+                                        style: const TextStyle(fontSize: 10),
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      )),
+                  const Divider(height: 32),
+                ],
+
+                // 2. Konten Bawaan (Dokumentasi Statis)
+                const _SectionHeader('Panduan Dasar Stroke'),
+                const SizedBox(height: 12),
+                _SectionCard(
+                  title: 'Apa itu Stroke?',
+                  icon: Icons.health_and_safety_rounded,
+                  color: Colors.red,
+                  isDark: isDark,
+                  children: [
+                    const _InfoText(
+                      'Stroke adalah kondisi medis serius yang terjadi ketika aliran darah ke otak terganggu atau terputus.',
+                    ),
+                    const SizedBox(height: 12),
+                    const _Subtitle('Jenis-jenis Stroke:'),
+                    const _BulletPoint('Stroke Iskemik: Penyumbatan pembuluh darah'),
+                    const _BulletPoint('Stroke Hemoragik: Pecahnya pembuluh darah'),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _SectionCard(
+                  title: 'Tanda dan Gejala (FAST)',
+                  icon: Icons.warning_rounded,
+                  color: Colors.orange,
+                  isDark: isDark,
+                  children: [
+                    const _FastItem('F', 'Face', 'Wajah mencong/tidak simetris'),
+                    const _FastItem('A', 'Arm', 'Lengan melemah/mati rasa'),
+                    const _FastItem('S', 'Speech', 'Bicara pelo/cadal'),
+                    const _FastItem('T', 'Time', 'Segera panggil bantuan medis'),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _SectionCard(
+                  title: 'Faktor Risiko & Pencegahan',
+                  icon: Icons.shield_rounded,
+                  color: Colors.green,
+                  isDark: isDark,
+                  children: [
+                    const _BulletPoint('Kontrol Hipertensi & Diabetes'),
+                    const _BulletPoint('Pola Makan Sehat & Rendah Garam'),
+                    const _BulletPoint('Aktivitas Fisik Teratur'),
+                    const _BulletPoint('Hindari Rokok & Alkohol'),
+                  ],
+                ),
+                SizedBox(height: MediaQuery.of(context).padding.bottom + 100),
+              ],
+            ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader(this.title);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey),
     );
   }
 }
@@ -240,9 +188,6 @@ class _SectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? Colors.grey[800] : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
-        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -256,22 +201,12 @@ class _SectionCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
+              Icon(icon, color: color, size: 24),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                 ),
               ),
             ],
@@ -286,7 +221,6 @@ class _SectionCard extends StatelessWidget {
 
 class _InfoText extends StatelessWidget {
   final String text;
-
   const _InfoText(this.text);
 
   @override
@@ -305,94 +239,38 @@ class _InfoText extends StatelessWidget {
 
 class _Subtitle extends StatelessWidget {
   final String text;
-
   const _Subtitle(this.text);
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }
 
 class _BulletPoint extends StatelessWidget {
   final String text;
-
   const _BulletPoint(this.text);
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '• ',
-            style: TextStyle(
-              fontSize: 16,
-              color: isDark ? Colors.grey[300] : Colors.grey[700],
-            ),
-          ),
+          const Text('• '),
           Expanded(
             child: Text(
               text,
               style: TextStyle(
                 fontSize: 14,
-                height: 1.5,
-                color: isDark ? Colors.grey[300] : Colors.grey[700],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NumberedPoint extends StatelessWidget {
-  final String number;
-  final String text;
-
-  const _NumberedPoint(this.number, this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              color: theme.primaryColor.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                number,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: theme.primaryColor,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.5,
                 color: isDark ? Colors.grey[300] : Colors.grey[700],
               ),
             ),
@@ -412,35 +290,16 @@ class _FastItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.grey[800] : Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.withOpacity(0.3)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: Colors.orange,
-              borderRadius: BorderRadius.circular(8),
-            ),
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(8)),
             child: Center(
-              child: Text(
-                letter,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                ),
-              ),
+              child: Text(letter, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ),
           const SizedBox(width: 12),
@@ -448,21 +307,8 @@ class _FastItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? Colors.grey[400] : Colors.grey[700],
-                  ),
-                ),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(description, style: const TextStyle(fontSize: 12, color: Colors.grey)),
               ],
             ),
           ),
@@ -471,4 +317,3 @@ class _FastItem extends StatelessWidget {
     );
   }
 }
-

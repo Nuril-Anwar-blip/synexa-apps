@@ -6,11 +6,11 @@ import 'package:aplication_stroke/global.dart';
 import 'package:aplication_stroke/providers/theme_provider.dart';
 import 'package:aplication_stroke/providers/language_provider.dart';
 import 'package:aplication_stroke/styles/themes/app_theme.dart';
-import 'package:aplication_stroke/modules/auth/widgets/splash_screen.dart';
+import 'package:aplication_stroke/auth/widgets/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Inisialisasi localization untuk format tanggal (id_ID)
   try {
     await initializeDateFormatting('id_ID', null);
@@ -57,18 +57,16 @@ class MyApp extends StatelessWidget {
             fontSizeScale: themeProvider.fontSize,
           ),
           themeMode: themeProvider.themeMode,
-          locale: languageProvider.locale, // Used languageProvider from Consumer2
-          supportedLocales: const [
-            Locale('en'),
-            Locale('id'),
-            Locale('ms'),
-          ],
+          locale:
+              languageProvider.locale, // Used languageProvider from Consumer2
+          supportedLocales: const [Locale('en'), Locale('id'), Locale('ms')],
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          home: const SplashScreen(), // Kept SplashScreen as it handles login check
+          home:
+              const SplashScreen(), // Kept SplashScreen as it handles login check
         );
       },
     );

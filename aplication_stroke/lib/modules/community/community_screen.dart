@@ -45,10 +45,49 @@ class _CommunityScreenState extends State<CommunityScreen> {
   /// Mengambil daftar postingan dari database Supabase.
   /// Memanggil RPC 'get_posts_with_details'.
   Future<List<Post>> _getPosts() async {
-    final response = await _supabase.rpc('get_posts_with_details');
-    return (response as List)
-        .map((data) => Post.fromMap(data as Map<String, dynamic>))
-        .toList();
+    final user = _supabase.auth.currentUser;
+    final userId = user?.id;
+    
+    // Schema mapping: image_url, users join, and counts
+    final response = await _supabase
+        .from('posts')
+        .select('''
+          *,
+          users!inner(full_name, photo_url),
+          likes(count),
+          comments(count)
+        ''')
+        .order('created_at', ascending: false);
+    
+    final List<Post> posts = [];
+    for (var data in (response as List)) {
+      final postData = Map<String, dynamic>.from(data);
+      final postId = postData['id'];
+      
+      // Fetch if user liked this post
+      bool hasLiked = false;
+      if (userId != null) {
+        final likeCheck = await _supabase
+            .from('likes')
+            .select('id')
+            .eq('post_id', postId)
+            .eq('user_id', userId)
+            .maybeSingle();
+        hasLiked = likeCheck != null;
+      }
+
+      // Map counts from the select (Note: Supabase count() return structure)
+      final likesCount = postData['likes']?[0]?['count'] ?? 0;
+      final commentsCount = postData['comments']?[0]?['count'] ?? 0;
+
+      postData['media_url'] = postData['image_url'];
+      postData['like_count'] = likesCount;
+      postData['comment_count'] = commentsCount;
+      postData['user_has_liked'] = hasLiked;
+      
+      posts.add(Post.fromMap(postData));
+    }
+    return posts;
   }
 
   /// Menyiapkan listener real-time untuk pembaruan postingan, like, dan komentar.

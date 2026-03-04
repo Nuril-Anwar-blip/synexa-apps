@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../auth/widgets/splash_screen.dart';
+import '../../auth/widgets/splash_screen.dart';
 
 /// Halaman Dashboard Admin
 ///
@@ -29,9 +29,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _activeChatRooms = 0;
   int _totalReminders = 0;
   List<Map<String, dynamic>> _latestChats = [];
+  List<_TableStatus> _tableStatuses = [];
   bool _isAdmin = false;
   String? _errorMessage;
   String _searchQuery = '';
+  static const Map<String, String> _schemaTables = {
+    'admins': 'user_id',
+    'app_config': 'key',
+    'chat_rooms': 'id',
+    'comments': 'id',
+    'education_contents': 'id',
+    'emergency_logs': 'id',
+    'health_logs': 'id',
+    'likes': 'id',
+    'medication_master': 'id',
+    'medication_reminders': 'id',
+    'messages': 'id',
+    'notifications': 'id',
+    'pairings': 'id',
+    'pharmacist_invitations': 'id',
+    'posts': 'id',
+    'rehab_exercise_logs': 'id',
+    'rehab_exercises': 'id',
+    'rehab_phases': 'id',
+    'rehab_quiz_attempts': 'id',
+    'rehab_quiz_questions': 'id',
+    'rehab_user_progress': 'user_id',
+    'sensor_data': 'id',
+    'user_settings': 'user_id',
+    'users': 'id',
+  };
 
   @override
   void initState() {
@@ -98,12 +125,41 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _activeChatRooms = (rooms as List).length;
       _totalReminders = (reminders as List).length;
       await _loadLatestChats();
+      await _loadTableStatuses();
       _errorMessage = null;
     } catch (e) {
       _errorMessage =
           'Tidak bisa memuat data admin. Periksa akses admin dan kebijakan RLS.';
     }
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _loadTableStatuses() async {
+    final statuses = <_TableStatus>[];
+    for (final entry in _schemaTables.entries) {
+      final table = entry.key;
+      final keyColumn = entry.value;
+      try {
+        final dynamic rows = await _supabase
+            .from(table)
+            .select(keyColumn)
+            .limit(1);
+        final hasRows = rows is List && rows.isNotEmpty;
+        statuses.add(
+          _TableStatus(table: table, isAccessible: true, hasRows: hasRows),
+        );
+      } catch (e) {
+        statuses.add(
+          _TableStatus(
+            table: table,
+            isAccessible: false,
+            hasRows: false,
+            error: e.toString(),
+          ),
+        );
+      }
+    }
+    _tableStatuses = statuses;
   }
 
   /// Subscribe ke perubahan realtime di tabel Supabase.
@@ -392,6 +448,53 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 16),
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Status Semua Tabel Supabase',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (_tableStatuses.isEmpty)
+                      const Text('Belum ada data tabel.')
+                    else
+                      ..._tableStatuses.map(
+                        (t) => ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(t.table),
+                          subtitle: Text(
+                            t.isAccessible
+                                ? (t.hasRows
+                                      ? 'Akses OK • Ada data'
+                                      : 'Akses OK • Belum ada data')
+                                : 'Tidak bisa diakses (cek RLS/permission)',
+                          ),
+                          trailing: Icon(
+                            t.isAccessible
+                                ? (t.hasRows
+                                      ? Icons.check_circle
+                                      : Icons.info_outline)
+                                : Icons.error_outline,
+                            color: t.isAccessible ? Colors.green : Colors.red,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             Card(
@@ -778,3 +881,16 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+class _TableStatus {
+  const _TableStatus({
+    required this.table,
+    required this.isAccessible,
+    required this.hasRows,
+    this.error,
+  });
+
+  final String table;
+  final bool isAccessible;
+  final bool hasRows;
+  final String? error;
+}

@@ -27,14 +27,15 @@ class ChatMessage {
   });
 
   factory ChatMessage.fromMap(Map<String, dynamic> map) {
+    // Schema doesn't have metadata, so we handle it optionally
+    final dynamic rawMetadata = map['metadata'];
     return ChatMessage(
       id: map['id'].toString(),
       content: map['content'] ?? '',
-      senderId: map['sender_id'],
+      senderId: map['sender_id']?.toString() ?? '',
       createdAt: DateTime.parse(map['created_at']),
-      // Metadata dari kolom jsonb untuk lampiran (gambar/dokumen)
-      metadata: map['metadata'] is Map
-          ? Map<String, dynamic>.from(map['metadata'] as Map)
+      metadata: rawMetadata is Map
+          ? Map<String, dynamic>.from(rawMetadata)
           : null,
     );
   }
