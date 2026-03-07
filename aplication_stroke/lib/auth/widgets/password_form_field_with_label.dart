@@ -154,7 +154,7 @@ class _PasswordFormFieldWithLabelState extends State<PasswordFormFieldWithLabel>
                       color: AppColor.primary.withOpacity(0.15),
                       blurRadius: 10,
                       offset: const Offset(0, 3),
-                      spreadRadius: -1,
+                      spreadRadius: 0,
                     ),
                   ]
                 : [

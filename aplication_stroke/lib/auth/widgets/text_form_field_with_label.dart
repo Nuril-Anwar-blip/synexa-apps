@@ -143,7 +143,7 @@ class _TextFormFieldWithLabelState extends State<TextFormFieldWithLabel> {
                       color: AppColor.primary.withOpacity(0.15),
                       blurRadius: 10,
                       offset: const Offset(0, 3),
-                      spreadRadius: -1,
+                      spreadRadius: 0,
                     ),
                   ]
                 : [

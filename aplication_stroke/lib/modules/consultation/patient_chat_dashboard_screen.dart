@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../settings/settings_screen.dart';
 import 'consultation_screen.dart';
-// import '../auth/login_screen.dart';
 
 class ChatRoomInfo {
   const ChatRoomInfo({
@@ -375,6 +375,16 @@ class _PatientChatDashboardScreenState
       appBar: AppBar(
         title: const Text('Konsultasi Saya'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_rounded),
+            tooltip: 'Pengaturan',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
           if (_isRefreshing)
             const Padding(
               padding: EdgeInsets.only(right: 12),

@@ -191,7 +191,7 @@ class _GenderCardState extends State<_GenderCard>
                       color: widget.selectedColor.withOpacity(0.15),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
-                      spreadRadius: -2,
+                      spreadRadius: 0,
                     ),
                   ]
                 : [

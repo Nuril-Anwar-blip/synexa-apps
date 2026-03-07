@@ -5,35 +5,34 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// FIX: import EmergencyContactModel dari file yang benar
+import '../../models/emergency_contact_model.dart';
+
 class EditProfileScreen extends StatefulWidget {
   final String name;
   final String phoneNumber;
-  final int? age;
+  final DateTime? birthDate;
   final String? gender;
   final double? weight;
   final double? height;
   final String? medicalHistory;
   final String? drugAllergy;
-  final String? emergencyContactName;
-  final String? emergencyContactPhone;
-  final String? emergencyContactRelationship;
+  final List<EmergencyContactModel>? emergencyContacts;
   final String? photoUrl;
 
   const EditProfileScreen({
-    Key? key,
+    super.key, // FIX: use super parameter
     required this.name,
     required this.phoneNumber,
-    this.age,
+    this.birthDate,
     this.gender,
     this.weight,
     this.height,
     this.medicalHistory,
     this.drugAllergy,
-    this.emergencyContactName,
-    this.emergencyContactPhone,
-    this.emergencyContactRelationship,
+    this.emergencyContacts,
     this.photoUrl,
-  }) : super(key: key);
+  });
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -42,7 +41,7 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
-  late TextEditingController _ageController;
+  DateTime? _birthDate;
   late TextEditingController _weightController;
   late TextEditingController _heightController;
   late TextEditingController _medicalHistoryController;
@@ -61,7 +60,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.initState();
     _nameController = TextEditingController(text: widget.name);
     _phoneController = TextEditingController(text: widget.phoneNumber);
-    _ageController = TextEditingController(text: widget.age?.toString() ?? '');
+    _birthDate = widget.birthDate;
     _weightController = TextEditingController(
       text: widget.weight?.toString() ?? '',
     );
@@ -74,14 +73,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _drugAllergyController = TextEditingController(
       text: widget.drugAllergy ?? '',
     );
+
+    final firstContact =
+        (widget.emergencyContacts != null &&
+            widget.emergencyContacts!.isNotEmpty)
+        ? widget.emergencyContacts!.first
+        : null;
+
     _emergencyContactNameController = TextEditingController(
-      text: widget.emergencyContactName ?? '',
+      text: firstContact?.name ?? '',
     );
     _emergencyContactPhoneController = TextEditingController(
-      text: widget.emergencyContactPhone ?? '',
+      text: firstContact?.phoneNumber ?? '',
     );
     _emergencyContactRelationshipController = TextEditingController(
-      text: widget.emergencyContactRelationship ?? '',
+      text: firstContact?.relationship ?? '',
     );
     _gender = widget.gender;
     _photoUrl = widget.photoUrl;
@@ -91,7 +97,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
-    _ageController.dispose();
     _weightController.dispose();
     _heightController.dispose();
     _medicalHistoryController.dispose();
@@ -156,7 +161,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   void _saveProfile() {
-    List<String> _parseList(String text) {
+    // FIX: rename to avoid leading underscore warning
+    List<String> parseList(String text) {
       if (text.trim().isEmpty) return [];
       return text
           .split(',')
@@ -165,19 +171,34 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           .toList();
     }
 
+    if (_drugAllergyController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Alergi Obat wajib diisi (ketik "Tidak ada" jika tidak punya).',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final dataToReturn = {
       'name': _nameController.text,
       'phoneNumber': _phoneController.text,
-      'age': int.tryParse(_ageController.text),
+      'birthDate': _birthDate,
       'gender': _gender,
       'weight': double.tryParse(_weightController.text),
       'height': double.tryParse(_heightController.text),
-      'medicalHistory': _parseList(_medicalHistoryController.text),
-      'drugAllergy': _parseList(_drugAllergyController.text),
-      'emergencyContactName': _emergencyContactNameController.text,
-      'emergencyContactPhone': _emergencyContactPhoneController.text,
-      'emergencyContactRelationship':
-          _emergencyContactRelationshipController.text,
+      'medicalHistory': parseList(_medicalHistoryController.text),
+      'drugAllergy': parseList(_drugAllergyController.text),
+      'emergencyContacts': [
+        EmergencyContactModel(
+          name: _emergencyContactNameController.text,
+          phoneNumber: _emergencyContactPhoneController.text,
+          relationship: _emergencyContactRelationshipController.text,
+        ),
+      ],
       'photoUrl': _photoUrl,
     };
     Navigator.pop(context, dataToReturn);
@@ -203,7 +224,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 18,
                       offset: const Offset(0, 10),
                     ),
@@ -257,7 +278,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         Text(
           'Perbarui foto agar apoteker mudah mengenali Anda.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white.withOpacity(0.9)),
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.9)),
         ),
       ],
     );
@@ -311,9 +332,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               selected: selected,
               selectedColor: Colors.teal.shade100,
               onSelected: (value) {
-                if (value) {
-                  setState(() => _gender = entry.key);
-                }
+                if (value) setState(() => _gender = entry.key);
               },
             );
           }).toList(),
@@ -371,11 +390,49 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           Row(
                             children: [
                               Expanded(
-                                child: _buildTextField(
-                                  _ageController,
-                                  'Umur',
-                                  keyboardType: TextInputType.number,
-                                  icon: Icons.cake_outlined,
+                                child: InkWell(
+                                  onTap: () async {
+                                    final date = await showDatePicker(
+                                      context: context,
+                                      initialDate: _birthDate ?? DateTime(2000),
+                                      firstDate: DateTime(1900),
+                                      lastDate: DateTime.now(),
+                                    );
+                                    // FIX: guard mounted after async
+                                    if (date != null && mounted) {
+                                      setState(() => _birthDate = date);
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                      vertical: 14,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.cake_outlined,
+                                          color: Colors.grey,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          _birthDate != null
+                                              ? '${_birthDate!.day}/${_birthDate!.month}/${_birthDate!.year}'
+                                              : 'Tgl Lahir',
+                                          style: TextStyle(
+                                            color: _birthDate != null
+                                                ? Colors.black87
+                                                : Colors.grey.shade600,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -414,9 +471,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           const SizedBox(height: 12),
                           _buildTextField(
                             _drugAllergyController,
-                            'Alergi Obat',
+                            'Alergi Obat *',
                             hint:
-                                'Pisahkan dengan koma, contoh: aspirin, parasetamol',
+                                'Pisahkan dengan koma, contoh: aspirin, parasetamol (Wajib diisi)',
                             icon: Icons.vaccines_outlined,
                           ),
                         ],
@@ -462,7 +519,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         color: Colors.white,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 12,
                             offset: const Offset(0, -4),
                           ),
@@ -525,4 +582,3 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 }
-

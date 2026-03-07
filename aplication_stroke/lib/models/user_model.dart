@@ -6,14 +6,14 @@ class UserModel {
   final String? id;
   final String email;
   final String fullName;
-  final int age;
+  final DateTime? birthDate;
   final double height;
   final double weight;
   final String gender;
   final String phoneNumber;
   final List<String> medicalHistory;
   final List<String> drugAllergy;
-  final EmergencyContactModel emergencyContact;
+  final List<EmergencyContactModel> emergencyContacts;
   final String role;
   final String? photoUrl;
 
@@ -21,14 +21,14 @@ class UserModel {
     this.id,
     required this.email,
     required this.fullName,
-    required this.age,
+    this.birthDate,
     required this.height,
     required this.weight,
     required this.gender,
     required this.phoneNumber,
     required this.medicalHistory,
     required this.drugAllergy,
-    required this.emergencyContact,
+    required this.emergencyContacts,
     this.role = 'pasien',
     this.photoUrl,
   });
@@ -56,7 +56,7 @@ class UserModel {
       id: map['id'] as String?,
       email: map['email'] as String? ?? '',
       fullName: map['full_name'] as String? ?? '',
-      age: map['age'] as int? ?? 0,
+      birthDate: map['birth_date'] != null ? DateTime.tryParse(map['birth_date']) : null,
       height: (map['height'] as num?)?.toDouble() ?? 0.0,
       weight: (map['weight'] as num?)?.toDouble() ?? 0.0,
       gender: map['gender'] as String? ?? 'male',
@@ -67,10 +67,10 @@ class UserModel {
       medicalHistory: _parseListFromMap(map['medical_history']),
       drugAllergy: _parseListFromMap(map['drug_allergy']),
 
-      emergencyContact:
-          map['emergency_contact'] != null && map['emergency_contact'] is Map
-          ? EmergencyContactModel.fromMap(map['emergency_contact'])
-          : EmergencyContactModel(name: '', phoneNumber: '', relationship: ''),
+      emergencyContacts:
+          map['emergency_contact'] != null && map['emergency_contact'] is List
+          ? (map['emergency_contact'] as List).map((e) => EmergencyContactModel.fromMap(e as Map<String, dynamic>)).toList()
+          : [],
 
       photoUrl: map['photo_url'] as String?,
     );
@@ -84,7 +84,7 @@ class UserModel {
       'id': id,
       'email': email,
       'full_name': fullName,
-      'age': age,
+      'birth_date': birthDate?.toIso8601String(),
       'height': height,
       'weight': weight,
       'gender': gender,
@@ -95,8 +95,8 @@ class UserModel {
       'medical_history': medicalHistory,
       'drug_allergy': drugAllergy,
 
-      // Kirim sebagai Map<String, dynamic> asli, BUKAN string JSON
-      'emergency_contact': emergencyContact.toMap(),
+      // Kirim sebagai List of Maps
+      'emergency_contact': emergencyContacts.map((e) => e.toMap()).toList(),
     };
   }
 
@@ -106,7 +106,7 @@ class UserModel {
     String? id,
     String? email,
     String? fullName,
-    int? age,
+    DateTime? birthDate,
     double? height,
     double? weight,
     String? gender,
@@ -114,14 +114,14 @@ class UserModel {
     String? role,
     List<String>? medicalHistory,
     List<String>? drugAllergy,
-    EmergencyContactModel? emergencyContact,
+    List<EmergencyContactModel>? emergencyContacts,
     String? photoUrl,
   }) {
     return UserModel(
       id: id ?? this.id,
       email: email ?? this.email,
       fullName: fullName ?? this.fullName,
-      age: age ?? this.age,
+      birthDate: birthDate ?? this.birthDate,
       height: height ?? this.height,
       weight: weight ?? this.weight,
       gender: gender ?? this.gender,
@@ -129,7 +129,7 @@ class UserModel {
       role: role ?? this.role,
       medicalHistory: medicalHistory ?? this.medicalHistory,
       drugAllergy: drugAllergy ?? this.drugAllergy,
-      emergencyContact: emergencyContact ?? this.emergencyContact,
+      emergencyContacts: emergencyContacts ?? this.emergencyContacts,
       photoUrl: photoUrl ?? this.photoUrl,
     );
   }

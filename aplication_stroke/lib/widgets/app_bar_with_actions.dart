@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/theme_provider.dart';
+import '../modules/settings/settings_screen.dart';
 
 class AppBarWithActions extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -25,40 +25,16 @@ class AppBarWithActions extends StatelessWidget implements PreferredSizeWidget {
       title: Text(title),
       elevation: 0,
       actions: [
-        if (showLanguageToggle)
-          Consumer<ThemeProvider>(
-            builder: (context, themeProvider, _) {
-              return IconButton(
-                icon: const Icon(Icons.language_rounded),
-                tooltip: 'Ubah Bahasa',
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Fitur ubah bahasa belum tersedia'),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        if (showThemeToggle)
-          Consumer<ThemeProvider>(
-            builder: (context, themeProvider, _) {
-              return IconButton(
-                icon: Icon(
-                  themeProvider.isDarkMode
-                      ? Icons.light_mode_rounded
-                      : Icons.dark_mode_rounded,
-                ),
-                tooltip: themeProvider.isDarkMode
-                    ? 'Mode Terang'
-                    : 'Mode Gelap',
-                onPressed: () {
-                  themeProvider.toggleTheme();
-                },
-              );
-            },
-          ),
+        IconButton(
+          icon: const Icon(Icons.settings_rounded),
+          tooltip: 'Pengaturan',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            );
+          },
+        ),
         if (actions != null) ...actions!,
       ],
     );

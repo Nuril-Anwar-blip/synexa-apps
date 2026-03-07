@@ -1,16 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:timezone/data/latest.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
+import '../../services/local/notification_service.dart';
 
 import '../../providers/theme_provider.dart';
 import 'medication_history_screen.dart';
 import 'models/medication_reminder.dart';
 import 'widgets/add_medication_dialog_v2.dart';
+import '../settings/settings_screen.dart';
 
 class MedicationReminderScreen extends StatefulWidget {
   const MedicationReminderScreen({super.key});
@@ -23,18 +21,6 @@ class MedicationReminderScreen extends StatefulWidget {
 class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   late final Stream<List<MedicationReminder>> _remindersStream;
-  late FlutterLocalNotificationsPlugin _notifPlugin;
-  static const AndroidNotificationChannel _medChannel =
-      AndroidNotificationChannel(
-        'medication_channel',
-        'Pengingat Obat',
-        description: 'Notifikasi untuk pengingat minum obat',
-        importance: Importance.max,
-        playSound: true,
-        enableVibration: true,
-        sound: RawResourceAndroidNotificationSound('alarm_sound'),
-      );
-
   final List<String> _periodFilters = const [
     'Semua',
     'Pagi',
@@ -49,7 +35,6 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeNotifications();
     _userId = _supabase.auth.currentUser?.id;
     if (_userId == null) {
       _remindersStream = Stream.value(const []);
@@ -64,103 +49,6 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
                 rows.map((row) => MedicationReminder.fromMap(row)).toList(),
           );
     }
-  }
-
-  Future<void> _initializeNotifications() async {
-    _notifPlugin = FlutterLocalNotificationsPlugin();
-    const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
-    );
-    const initSettings = InitializationSettings(android: androidSettings);
-    await _notifPlugin.initialize(settings: initSettings);
-    tz.initializeTimeZones();
-    final androidImpl = _notifPlugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    if (androidImpl != null) {
-      await androidImpl.createNotificationChannel(_medChannel);
-      try {
-        await (androidImpl as dynamic).requestNotificationsPermission();
-      } catch (_) {
-        // Fallback: method not available on this plugin version.
-      }
-      try {
-        await androidImpl.requestExactAlarmsPermission();
-      } catch (_) {
-        // API < 33 will throw; safe to ignore.
-      }
-    }
-  }
-
-  Future<void> _scheduleNotification(
-    String reminderId,
-    String name,
-    TimeOfDay time,
-  ) async {
-    final now = TimeOfDay.now();
-    
-    // Base notification ID from hash of the reminder UUID
-    final int baseId = reminderId.hashCode.abs() % 100000;
-
-    for (int i = 0; i < 4; i++) {
-      final snoozeMinutes = i * 5;
-      
-      Duration diff = Duration(
-        hours: time.hour - now.hour,
-        minutes: (time.minute + snoozeMinutes) - now.minute,
-      );
-      
-      if (diff.isNegative) diff += const Duration(days: 1);
-
-      final scheduledTime = tz.TZDateTime.now(tz.local).add(diff);
-
-      final androidDetails = AndroidNotificationDetails(
-        'medication_channel',
-        'Pengingat Obat',
-        channelDescription: 'Notifikasi untuk pengingat minum obat',
-        importance: Importance.max,
-        priority: Priority.high,
-        playSound: true,
-        enableVibration: true,
-        sound: const RawResourceAndroidNotificationSound('alarm_sound'),
-        ticker: 'MedicationReminder',
-      );
-
-      final details = NotificationDetails(android: androidDetails);
-
-      await _notifPlugin.zonedSchedule(
-        id: baseId + i,
-        title: i == 0 ? 'Waktunya minum obat!' : 'Pengingat: Belum minum obat ($snoozeMinutes mnt)',
-        body: 'Minum obat: $name sekarang!',
-        scheduledDate: scheduledTime,
-        notificationDetails: details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        matchDateTimeComponents: DateTimeComponents.time,
-      );
-      
-      debugPrint("Scheduled notification ${baseId + i} at $scheduledTime (snooze: $snoozeMinutes)");
-    }
-  }
-
-  Future<void> _testAlarmNow() async {
-    const androidDetails = AndroidNotificationDetails(
-      'test_channel',
-      'Tes Alarm',
-      channelDescription: 'Coba suara alarm sekarang',
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-      enableVibration: true,
-      sound: RawResourceAndroidNotificationSound('alarm_sound'),
-    );
-    const details = NotificationDetails(android: androidDetails);
-    await _notifPlugin.show(
-      id: 999,
-      title: 'Tes Alarm',
-      body: 'Alarm berbunyi sekarang',
-      notificationDetails: details,
-    );
   }
 
   Future<void> _addMedication() async {
@@ -202,7 +90,7 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
             .select()
             .single();
 
-        await _scheduleNotification(
+        await NotificationService().scheduleMedicationNotification(
           inserted['id'].toString(),
           inserted['name'] as String,
           time,
@@ -231,12 +119,7 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
           .eq('id', reminder.id);
 
       if (!reminder.taken) {
-        // Jika ditandai "Sudah Diminum", batalkan rentetan notifikasi (snooze) hari ini
-        final int baseId = reminder.id.hashCode.abs() % 100000;
-        for (int i = 0; i < 4; i++) {
-          await _notifPlugin.cancel(id: baseId + i);
-        }
-        debugPrint("Cancelled notifications for reminder ${reminder.id}");
+        await NotificationService().cancelMedicationNotifications(reminder.id.toString());
       }
     } catch (e) {
       if (!mounted) return;
@@ -315,34 +198,13 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
         ),
         title: const Text('Pengingat Obat'),
         actions: [
-          // Theme Toggle
-          Consumer<ThemeProvider>(
-            builder: (context, themeProvider, _) {
-              return IconButton(
-                icon: Icon(
-                  themeProvider.isDarkMode
-                      ? Icons.light_mode_rounded
-                      : Icons.dark_mode_rounded,
-                  color: Colors.white,
-                ),
-                tooltip: themeProvider.isDarkMode
-                    ? 'Mode Terang'
-                    : 'Mode Gelap',
-                onPressed: () {
-                  themeProvider.toggleTheme();
-                },
-              );
-            },
-          ),
-          // Language Toggle
           IconButton(
-            icon: const Icon(Icons.language_rounded, color: Colors.white),
-            tooltip: 'Ubah Bahasa',
+            icon: const Icon(Icons.settings_rounded, color: Colors.white),
+            tooltip: 'Pengaturan',
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Fitur perubahan bahasa akan segera hadir'),
-                ),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
               );
             },
           ),
@@ -354,7 +216,7 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
           IconButton(
             icon: const Icon(Icons.volume_up_rounded, color: Colors.white),
             tooltip: 'Coba bunyi alarm',
-            onPressed: _testAlarmNow,
+            onPressed: () => NotificationService().testAlarmNow(),
           ),
         ],
       ),

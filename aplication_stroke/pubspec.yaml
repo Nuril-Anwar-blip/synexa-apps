@@ -34,6 +34,7 @@ dependencies:
   flutter_facebook_auth: ^7.1.5
   google_sign_in: ^6.2.1
   google_fonts: ^8.0.2
+  alarm: ^5.2.1
 
 
 dev_dependencies:

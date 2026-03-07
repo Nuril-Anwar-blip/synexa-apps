@@ -10,6 +10,7 @@ import '../../providers/language_provider.dart';
 import 'edit_profile_screen.dart';
 import '../../auth/login_screen.dart';
 import '../pairing_scanner/pairing_scanner_screen.dart';
+import '../settings/settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -78,18 +79,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final Map<String, dynamic> dataForSupabase = {
       'full_name': data['name'],
       'phone_number': data['phoneNumber'],
-      'age': data['age'],
+      'birth_date': data['birthDate'] != null ? data['birthDate'].toIso8601String() : null,
       'gender': data['gender'],
       'weight': data['weight'],
       'height': data['height'],
       'medical_history': data['medicalHistory'],
       'drug_allergy':
           data['drugAllergy'], // <-- Kunci ini sekarang benar ('drug_allergy')
-      'emergency_contact': {
-        'name': data['emergencyContactName'],
-        'phone_number': data['emergencyContactPhone'],
-        'relationship': data['emergencyContactRelationship'] ?? '',
-      },
+      'emergency_contact': data['emergencyContacts']?.map((e) => {
+        'name': e.name,
+        'phone_number': e.phoneNumber,
+        'relationship': e.relationship ?? '',
+      }).toList() ?? [],
       // Pastikan photo_url juga menggunakan snake_case jika perlu,
       // tapi biasanya dari Supabase sudah benar. Kita tambahkan secara kondisional.
     };
@@ -131,14 +132,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (_) => EditProfileScreen(
           name: userModel?.fullName ?? '',
           phoneNumber: userModel?.phoneNumber ?? '',
-          age: userModel?.age,
+          birthDate: userModel?.birthDate,
           gender: userModel?.gender,
           weight: userModel?.weight,
           height: userModel?.height,
           medicalHistory: userModel?.medicalHistory.join(', '),
           drugAllergy: userModel?.drugAllergy.join(', '),
-          emergencyContactName: userModel?.emergencyContact.name,
-          emergencyContactPhone: userModel?.emergencyContact.phoneNumber,
+          emergencyContacts: userModel?.emergencyContacts ?? [],
           photoUrl: userModel?.photoUrl,
         ),
       ),
@@ -182,148 +182,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /// Menampilkan dialog untuk memilih jenis font
-  void _showFontDialog(BuildContext context, ThemeProvider themeProvider) {
-    final fonts = ['Poppins', 'Inter', 'Roboto', 'Lato', 'Open Sans'];
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Pilih Jenis Font'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: fonts
-              .map(
-                (font) => ListTile(
-                  title: Text(font, style: GoogleFonts.getFont(font)),
-                  trailing: themeProvider.fontFamily == font
-                      ? const Icon(Icons.check, color: Colors.teal)
-                      : null,
-                  onTap: () {
-                    themeProvider.setFontFamily(font);
-                    Navigator.pop(context);
-                  },
-                ),
-              )
-              .toList(),
-        ),
-      ),
-    );
-  }
-
-  /// Menampilkan dialog untuk mengatur ukuran font
-  void _showFontSizeDialog(BuildContext context, ThemeProvider themeProvider) {
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: const Text('Ukuran Teks'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Sesuaikan kenyamanan membaca Anda'),
-                const SizedBox(height: 20),
-                Slider(
-                  value: themeProvider.fontSize,
-                  min: 0.8,
-                  max: 1.4,
-                  divisions: 3,
-                  label: themeProvider.fontSize == 0.8
-                      ? 'Kecil'
-                      : (themeProvider.fontSize == 1.0
-                            ? 'Normal'
-                            : (themeProvider.fontSize == 1.2
-                                  ? 'Besar'
-                                  : 'Sangat Besar')),
-                  onChanged: (val) {
-                    themeProvider.setFontSize(val);
-                    setDialogState(() {});
-                  },
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text('A', style: TextStyle(fontSize: 12)),
-                    Text('A', style: TextStyle(fontSize: 16)),
-                    Text('A', style: TextStyle(fontSize: 20)),
-                    Text('A', style: TextStyle(fontSize: 24)),
-                  ],
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Tutup'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  /// Menampilkan dialog untuk memilih bahasa
-  void _showLanguageDialog(
-    BuildContext context,
-    LanguageProvider langProvider,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Pilih Bahasa'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildLanguageOption(
-              context,
-              langProvider,
-              code: 'id',
-              name: 'Bahasa Indonesia',
-              flag: '🇮🇩',
-            ),
-            _buildLanguageOption(
-              context,
-              langProvider,
-              code: 'en',
-              name: 'English',
-              flag: '🇺🇸',
-            ),
-            _buildLanguageOption(
-              context,
-              langProvider,
-              code: 'ms',
-              name: 'Melayu',
-              flag: '🇲🇾',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Widget pembantu untuk opsi bahasa dalam dialog
-  Widget _buildLanguageOption(
-    BuildContext context,
-    LanguageProvider langProvider, {
-    required String code,
-    required String name,
-    required String flag,
-  }) {
-    final isSelected = langProvider.currentLanguage == code;
-    return ListTile(
-      leading: Text(flag, style: const TextStyle(fontSize: 24)),
-      title: Text(name),
-      trailing: isSelected ? const Icon(Icons.check, color: Colors.teal) : null,
-      onTap: () {
-        langProvider.setLanguage(code);
-        Navigator.pop(context);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Bahasa diubah ke $name')));
-      },
-    );
-  }
+  /// Fitur dialog pengaturan (font, bahasa, tema) telah dipindahkan ke SettingsScreen.
 
   @override
   Widget build(BuildContext context) {
@@ -336,6 +195,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         title: const Text('Profil'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_rounded),
+            tooltip: 'Pengaturan',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.edit_note_rounded),
             onPressed: _openEditProfile,
@@ -421,28 +290,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           children: [
                             _InfoRow(
                               label: 'Nama',
-                              value: userModel!.emergencyContact.name.isNotEmpty
-                                  ? userModel!.emergencyContact.name
+                              value: userModel!.emergencyContacts.isNotEmpty && userModel!.emergencyContacts.first.name.isNotEmpty
+                                  ? userModel!.emergencyContacts.first.name
                                   : '-',
                             ),
                             _InfoRow(
                               label: 'Nomor Telepon',
                               value:
-                                  userModel!
-                                      .emergencyContact
+                                  userModel!.emergencyContacts.isNotEmpty &&
+                                      userModel!.emergencyContacts.first
                                       .phoneNumber
                                       .isNotEmpty
-                                  ? userModel!.emergencyContact.phoneNumber
+                                  ? userModel!.emergencyContacts.first.phoneNumber
                                   : '-',
                             ),
                             _InfoRow(
                               label: 'Hubungan',
                               value:
-                                  userModel!
-                                      .emergencyContact
+                                  userModel!.emergencyContacts.isNotEmpty &&
+                                      userModel!.emergencyContacts.first
                                       .relationship
                                       .isNotEmpty
-                                  ? userModel!.emergencyContact.relationship
+                                  ? userModel!.emergencyContacts.first.relationship
                                   : '-',
                             ),
                           ],
@@ -465,87 +334,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           },
                         ),
                         const SizedBox(height: 20),
-                        _InfoSectionCard(
-                          title: 'Pengaturan Aplikasi',
-                          icon: Icons.settings_outlined,
-                          children: [
-                            Consumer<LanguageProvider>(
-                              builder: (context, langProvider, _) {
-                                return ListTile(
-                                  leading: const Icon(
-                                    Icons.language_rounded,
-                                    color: Colors.orange,
-                                  ),
-                                  title: const Text('Bahasa'),
-                                  subtitle: Text(langProvider.languageName),
-                                  trailing: const Icon(Icons.chevron_right),
-                                  onTap: () => _showLanguageDialog(
-                                    context,
-                                    langProvider,
-                                  ),
-                                );
-                              },
-                            ),
-                            Consumer<ThemeProvider>(
-                              builder: (context, themeProvider, _) {
-                                return Column(
-                                  children: [
-                                    ListTile(
-                                      leading: const Icon(
-                                        Icons.font_download_rounded,
-                                        color: Colors.blue,
-                                      ),
-                                      title: const Text('Jenis Font'),
-                                      subtitle: Text(themeProvider.fontFamily),
-                                      trailing: const Icon(Icons.chevron_right),
-                                      onTap: () => _showFontDialog(
-                                        context,
-                                        themeProvider,
-                                      ),
-                                    ),
-                                    ListTile(
-                                      leading: const Icon(
-                                        Icons.format_size_rounded,
-                                        color: Colors.green,
-                                      ),
-                                      title: const Text('Ukuran Teks'),
-                                      subtitle: Text(
-                                        themeProvider.fontSize == 0.8
-                                            ? 'Kecil'
-                                            : (themeProvider.fontSize == 1.0
-                                                  ? 'Normal'
-                                                  : 'Besar'),
-                                      ),
-                                      trailing: const Icon(Icons.chevron_right),
-                                      onTap: () => _showFontSizeDialog(
-                                        context,
-                                        themeProvider,
-                                      ),
-                                    ),
-                                    SwitchListTile(
-                                      secondary: Icon(
-                                        themeProvider.isDarkMode
-                                            ? Icons.dark_mode_rounded
-                                            : Icons.light_mode_rounded,
-                                        color: themeProvider.isDarkMode
-                                            ? Colors.purple
-                                            : Colors.amber,
-                                      ),
-                                      title: Text(
-                                        themeProvider.isDarkMode
-                                            ? 'Mode Gelap'
-                                            : 'Mode Terang',
-                                      ),
-                                      value: themeProvider.isDarkMode,
-                                      onChanged: (val) =>
-                                          themeProvider.toggleTheme(),
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ],
-                        ),
+
                         const SizedBox(height: 12),
                         _ProfileActionButton(
                           icon: Icons.logout,
@@ -569,7 +358,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final cards = [
       _QuickStatCard(
         label: 'Umur',
-        value: user.age > 0 ? '${user.age} th' : '-',
+        value: user.ageUI > 0 ? '${user.ageUI} th' : '-',
       ),
       _QuickStatCard(
         label: 'Tinggi',

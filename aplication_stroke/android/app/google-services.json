@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "478854953190",
+    "project_id": "synexa-ff150",
+    "storage_bucket": "synexa-ff150.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:478854953190:android:11721c613239422fdae327",
+        "android_client_info": {
+          "package_name": "com.example.aplication_stroke"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "478854953190-c0u4n95cav6fn16jrl7vdndj52j2nllo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAW8KNBlo6w3jC-y2PhiSRh2daeSA3XPXE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "478854953190-c0u4n95cav6fn16jrl7vdndj52j2nllo.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:478854953190:android:422f29bb2981f703dae327",
+        "android_client_info": {
+          "package_name": "com.synexaapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "478854953190-c0u4n95cav6fn16jrl7vdndj52j2nllo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAW8KNBlo6w3jC-y2PhiSRh2daeSA3XPXE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "478854953190-c0u4n95cav6fn16jrl7vdndj52j2nllo.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

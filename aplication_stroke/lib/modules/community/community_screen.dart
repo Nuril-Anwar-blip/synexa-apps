@@ -7,6 +7,7 @@ import '../../../../models/post_model.dart';
 import 'create_post_screen.dart';
 import 'post_detail_screen.dart';
 import 'widgets/post_card.dart';
+import '../settings/settings_screen.dart';
 
 /// Halaman Komunitas
 ///
@@ -284,6 +285,16 @@ class _CommunityScreenState extends State<CommunityScreen> {
       appBar: AppBar(
         title: const Text('Komunitas'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_rounded),
+            tooltip: 'Pengaturan',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
           if (_isRefreshing)
             const Padding(
               padding: EdgeInsets.only(right: 12),

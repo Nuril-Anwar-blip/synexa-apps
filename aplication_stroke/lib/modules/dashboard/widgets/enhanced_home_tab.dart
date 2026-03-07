@@ -18,6 +18,7 @@ import '../../emergency_location/emergency_location_screen.dart';
 import '../../exercise/exercise_screen.dart';
 
 // Import Modular Components & Models
+import '../../../models/emergency_contact_model.dart';
 import '../models/dashboard_stats.dart';
 import 'greeting_heart_rate_card.dart';
 import 'quick_action_card.dart';
@@ -50,6 +51,7 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab> {
   String? _photoUrl;
   DashboardStats _currentStats = DashboardStats.empty();
   List<MedicationReminder> _reminders = [];
+  List<EmergencyContactModel> _emergencyContacts = [];
 
   final Map<String, bool> _exerciseCompletionStatus = {};
 
@@ -108,7 +110,7 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab> {
     try {
       final data = await _supabase
           .from('users')
-          .select('full_name, photo_url')
+          .select('full_name, photo_url, emergency_contact')
           .eq('id', _userId!)
           .maybeSingle();
 
@@ -118,6 +120,10 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab> {
         final name = data['full_name']?.toString() ?? '';
         _userName = name.isNotEmpty ? name : 'Integrated Stroke';
         _photoUrl = data['photo_url']?.toString();
+        
+        if (data['emergency_contact'] != null && data['emergency_contact'] is List) {
+          _emergencyContacts = (data['emergency_contact'] as List).map((e) => EmergencyContactModel.fromMap(e as Map<String, dynamic>)).toList();
+        }
       });
     } catch (_) {}
   }
@@ -458,6 +464,101 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab> {
                                 'id': 'Cari bantuan dalam radius 20km',
                                 'en': 'Find help within 20km radius',
                                 'ms': 'Cari bantuan dalam radius 20km',
+                              }),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 18),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () {
+                  if (_emergencyContacts.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Anda belum mengatur kontak darurat di Profil.')),
+                    );
+                    return;
+                  }
+                  final contact = _emergencyContacts.first;
+                  showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: Text('Panggil ${contact.name}?'),
+                      content: Text('Nomor: ${contact.phoneNumber}\nHubungan: ${contact.relationship}'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Membuka telepon: ${contact.phoneNumber}')),
+                            );
+                          },
+                          child: const Text('Panggil'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.orange.shade400, Colors.orange.shade700],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.orange.withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.family_restroom_rounded, color: Colors.white, size: 28),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              lang.translate({
+                                'id': 'Panggil Keluarga',
+                                'en': 'Call Family',
+                                'ms': 'Panggil Keluarga',
+                              }),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              lang.translate({
+                                'id': 'Hubungi kontak darurat utama',
+                                'en': 'Contact main designated person',
+                                'ms': 'Hubungi kenalan kecemasan utama',
                               }),
                               style: TextStyle(
                                 color: Colors.white.withOpacity(0.9),

@@ -1,13 +1,13 @@
-import 'package:aplication_stroke/modules/admin/admin_dashboard_screen.dart';
-import 'package:aplication_stroke/modules/dashboard/dashboard_screen.dart';
-import 'package:aplication_stroke/modules/pharmacist/apoteker_dashboard_screen.dart';
-
-import '../login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:aplication_stroke/modules/admin/admin_dashboard_screen.dart';
+import 'package:aplication_stroke/modules/dashboard/unified_main_screen.dart';
+import 'package:aplication_stroke/modules/pharmacist/apoteker_dashboard_screen.dart';
+import '../login_screen.dart';
+import '../onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({Key? key}) : super(key: key);
 
   @override
   _SplashScreenState createState() => _SplashScreenState();
@@ -27,11 +27,11 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
-      // akhiri sesi jika tidak ada, masuk ke menu login
+    if (session == null) {
+      // Belum login: arahkan dulu ke onboarding, dari sana ke login
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
       );
       return;
     }
@@ -53,7 +53,7 @@ class _SplashScreenState extends State<SplashScreen> {
           context,
           MaterialPageRoute(builder: (_) => const ApotekerDashboardScreen()),
         );
-      } else if (role == 'pasien') {
+      } else if (role == 'admin') {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
@@ -62,14 +62,14 @@ class _SplashScreenState extends State<SplashScreen> {
         // dashboard pasien
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          MaterialPageRoute(builder: (_) => const UnifiedMainScreen()),
         );
       }
     } catch (e) {
       // jika gagal mengambil profile, arahkan ke dashboard default
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+        MaterialPageRoute(builder: (_) => const UnifiedMainScreen()),
       );
     }
   }

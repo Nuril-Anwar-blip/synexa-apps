@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'services/local/notification_service.dart';
 
 /**
  * Class `Global` berfungsi sebagai pusat inisialisasi (service locator)
@@ -29,6 +30,9 @@ class Global {
       url: url,
       anonKey: anonKey,
     );
+
+    // Initialize Global Notification Service
+    await NotificationService().init();
   }
 }
 
