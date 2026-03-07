@@ -1,3 +1,21 @@
+/// ====================================================================
+/// File: community_screen.dart
+/// --------------------------------------------------------------------
+/// Layar Komunitas/Forum
+/// 
+/// Dokumen ini berisi halaman komunitas untuk berinteraksi dengan
+/// pengguna lain. Pengguna dapat melihat dan membuat post.
+/// 
+/// Fitur:
+/// - Daftar post dari komunitas
+/// - Pull-to-refresh untuk memperbarui data
+/// - Tombol buat post baru (FAB)
+/// - Filter/tabs untuk kategori post
+/// - Like dan comment pada post
+/// 
+/// Author: Tim Developer Synexa
+/// ====================================================================
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -7,7 +25,7 @@ import '../../../../models/post_model.dart';
 import 'create_post_screen.dart';
 import 'post_detail_screen.dart';
 import 'widgets/post_card.dart';
-import '../settings/settings_screen.dart';
+import '../../../widgets/quick_settings_sheet.dart';
 
 /// Halaman Komunitas
 ///
@@ -48,7 +66,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
   Future<List<Post>> _getPosts() async {
     final user = _supabase.auth.currentUser;
     final userId = user?.id;
-    
+
     // Schema mapping: image_url, users join, and counts
     final response = await _supabase
         .from('posts')
@@ -59,12 +77,12 @@ class _CommunityScreenState extends State<CommunityScreen> {
           comments(count)
         ''')
         .order('created_at', ascending: false);
-    
+
     final List<Post> posts = [];
     for (var data in (response as List)) {
       final postData = Map<String, dynamic>.from(data);
       final postId = postData['id'];
-      
+
       // Fetch if user liked this post
       bool hasLiked = false;
       if (userId != null) {
@@ -85,7 +103,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
       postData['like_count'] = likesCount;
       postData['comment_count'] = commentsCount;
       postData['user_has_liked'] = hasLiked;
-      
+
       posts.add(Post.fromMap(postData));
     }
     return posts;
@@ -281,19 +299,13 @@ class _CommunityScreenState extends State<CommunityScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text('Komunitas'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_rounded),
-            tooltip: 'Pengaturan',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
-            },
+            icon: const Icon(Icons.tune_rounded),
+            tooltip: 'Quick Settings',
+            onPressed: () => QuickSettingsSheet.show(context),
           ),
           if (_isRefreshing)
             const Padding(
@@ -795,4 +807,3 @@ class _CommunityTipsSheet extends StatelessWidget {
     );
   }
 }
-

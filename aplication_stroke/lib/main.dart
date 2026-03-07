@@ -1,3 +1,19 @@
+/// ====================================================================
+/// File: main.dart
+/// --------------------------------------------------------------------
+/// Aplikasi Utama Synexa - Aplikasi Pemulihan Stroke
+///
+/// Dokumen ini berisi entry point aplikasi Flutter.
+/// Di sini dilakukan:
+/// - Inisialisasi layanan global (Supabase, Notification)
+/// - Konfigurasi Provider (Theme, Language)
+/// - Pengaturan tema (Light/Dark)
+/// - Pengaturan locale (Bahasa: EN, ID, MS)
+/// - MediaQuery.textScaler untuk skala font global
+///
+/// Author: Tim Developer Synexa
+/// ====================================================================
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -45,7 +61,7 @@ class MyApp extends StatelessWidget {
       builder: (context, themeProvider, languageProvider, _) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'Integrated Stroke', // Changed title
+          title: 'Integrated Stroke',
           theme: AppTheme.getTheme(
             isDark: false,
             fontFamily: themeProvider.fontFamily,
@@ -57,16 +73,23 @@ class MyApp extends StatelessWidget {
             fontSizeScale: themeProvider.fontSize,
           ),
           themeMode: themeProvider.themeMode,
-          locale:
-              languageProvider.locale, // Used languageProvider from Consumer2
+          locale: languageProvider.locale,
           supportedLocales: const [Locale('en'), Locale('id'), Locale('ms')],
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          home:
-              const SplashScreen(), // Kept SplashScreen as it handles login check
+          // Apply text scale factor globally so ALL text (including hardcoded sizes) scales
+          builder: (context, child) {
+            return MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(themeProvider.fontSize)),
+              child: child!,
+            );
+          },
+          home: const SplashScreen(),
         );
       },
     );

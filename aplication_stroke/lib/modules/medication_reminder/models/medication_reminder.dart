@@ -1,3 +1,26 @@
+/// ====================================================================
+/// File: medication_reminder.dart
+/// --------------------------------------------------------------------
+/// Model Pengingat Obat (Medication Reminder)
+/// 
+/// Dokumen ini mendefinisikan struktur data untuk pengingat obat
+/// yang akan dikirimkan kepada pengguna.
+/// 
+/// Properties:
+/// - id: ID unik pengingat obat
+/// - name: Nama obat
+/// - dose: Dosis/jumlah obat
+/// - note: Catatan tambahan
+/// - time: Jam pemberian obat (TimeOfDay)
+/// - period: Periode (pagi/siang/sore/malam)
+/// - taken: Status sudah diminum/belum
+/// - isActive: Status aktif/nonaktif
+/// - currentStock: Stok obat saat ini
+/// - totalStock: Total stok obat
+/// 
+/// Author: Tim Developer Synexa
+/// ====================================================================
+
 import 'package:flutter/material.dart';
 
 class MedicationReminder {

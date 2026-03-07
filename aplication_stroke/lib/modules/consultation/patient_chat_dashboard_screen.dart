@@ -1,10 +1,28 @@
+/// ====================================================================
+/// File: patient_chat_dashboard_screen.dart
+/// --------------------------------------------------------------------
+/// Layar Chat Konsultasi Pasien dengan Apoteker
+/// 
+/// Dokumen ini berisi halaman chat untuk berkonsultasi dengan apoteker
+/// atau dokter secara realtime.
+/// 
+/// Fitur:
+/// - Daftar percakapan dengan profesional kesehatan
+/// - Chat real-time menggunakan Supabase Realtime
+/// - Indicator online/offline
+/// - Notifikasi pesan baru
+/// - Kirim gambar (jika diperlukan)
+/// 
+/// Author: Tim Developer Synexa
+/// ====================================================================
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../settings/settings_screen.dart';
+import '../../../widgets/quick_settings_sheet.dart';
 import 'consultation_screen.dart';
 
 class ChatRoomInfo {
@@ -371,19 +389,13 @@ class _PatientChatDashboardScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('Konsultasi Saya'),
+        title: const Text('Konsultasi'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_rounded),
-            tooltip: 'Pengaturan',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
-            },
+            icon: const Icon(Icons.tune_rounded),
+            tooltip: 'Quick Settings',
+            onPressed: () => QuickSettingsSheet.show(context),
           ),
           if (_isRefreshing)
             const Padding(
@@ -746,4 +758,3 @@ class _PharmacistPickerSheetState extends State<_PharmacistPickerSheet> {
     );
   }
 }
-

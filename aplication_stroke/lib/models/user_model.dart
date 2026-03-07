@@ -1,5 +1,31 @@
+/// ====================================================================
+/// File: user_model.dart
+/// --------------------------------------------------------------------
+/// Model Data Pengguna (User Model)
+/// 
+/// Dokumen ini mendefinisikan struktur data pengguna yang digunakan
+/// di seluruh aplikasi Synexa.
+/// 
+/// Properties:
+/// - id: ID unik pengguna (UUID dari Supabase)
+/// - email: Alamat email pengguna
+/// - fullName: Nama lengkap pengguna
+/// - birthDate: Tanggal lahir
+/// - height: Tinggi badan (cm)
+/// - weight: Berat badan (kg)
+/// - gender: Jenis kelamin
+/// - phoneNumber: Nomor telepon
+/// - medicalHistory: Riwayat penyakit
+/// - drugAllergy: Alergi obat
+/// - emergencyContacts: Daftar kontak darurat
+/// - role: Peran (pasien/apoteker/dokter)
+/// - photoUrl: URL foto profil
+/// 
+/// Author: Tim Developer Synexa
+/// ====================================================================
+
 import 'dart:convert';
-import 'emergency_contact_model.dart'; // Pastikan path import ini benar
+import 'emergency_contact_model.dart';
 
 /// Model utama untuk data profil pengguna.
 class UserModel {

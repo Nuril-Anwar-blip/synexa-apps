@@ -1,3 +1,22 @@
+/// ====================================================================
+/// File: profile_screen.dart
+/// --------------------------------------------------------------------
+/// Layar Profil Pengguna
+/// 
+/// Dokumen ini menampilkan informasi profil pengguna yang sedang login.
+/// 
+/// Fitur:
+/// - Foto profil (avatar)
+/// - Nama lengkap pengguna
+/// - Email dan role (pasien/apoteker)
+/// - Tombol edit profil
+/// - Tombol pengaturan (settings)
+/// - Daftar kontak darurat
+/// - Tombol logout
+/// 
+/// Author: Tim Developer Synexa
+/// ====================================================================
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,7 +29,7 @@ import '../../providers/language_provider.dart';
 import 'edit_profile_screen.dart';
 import '../../auth/login_screen.dart';
 import '../pairing_scanner/pairing_scanner_screen.dart';
-import '../settings/settings_screen.dart';
+import '../../widgets/quick_settings_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -79,18 +98,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final Map<String, dynamic> dataForSupabase = {
       'full_name': data['name'],
       'phone_number': data['phoneNumber'],
-      'birth_date': data['birthDate'] != null ? data['birthDate'].toIso8601String() : null,
+      'birth_date': data['birthDate'] != null
+          ? data['birthDate'].toIso8601String()
+          : null,
       'gender': data['gender'],
       'weight': data['weight'],
       'height': data['height'],
       'medical_history': data['medicalHistory'],
       'drug_allergy':
           data['drugAllergy'], // <-- Kunci ini sekarang benar ('drug_allergy')
-      'emergency_contact': data['emergencyContacts']?.map((e) => {
-        'name': e.name,
-        'phone_number': e.phoneNumber,
-        'relationship': e.relationship ?? '',
-      }).toList() ?? [],
+      'emergency_contact':
+          data['emergencyContacts']
+              ?.map(
+                (e) => {
+                  'name': e.name,
+                  'phone_number': e.phoneNumber,
+                  'relationship': e.relationship ?? '',
+                },
+              )
+              .toList() ??
+          [],
       // Pastikan photo_url juga menggunakan snake_case jika perlu,
       // tapi biasanya dari Supabase sudah benar. Kita tambahkan secara kondisional.
     };
@@ -191,19 +218,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text('Profil'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_rounded),
-            tooltip: 'Pengaturan',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
-            },
+            icon: const Icon(Icons.tune_rounded),
+            tooltip: 'Quick Settings',
+            onPressed: () => QuickSettingsSheet.show(context),
           ),
           IconButton(
             icon: const Icon(Icons.edit_note_rounded),
@@ -290,7 +311,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           children: [
                             _InfoRow(
                               label: 'Nama',
-                              value: userModel!.emergencyContacts.isNotEmpty && userModel!.emergencyContacts.first.name.isNotEmpty
+                              value:
+                                  userModel!.emergencyContacts.isNotEmpty &&
+                                      userModel!
+                                          .emergencyContacts
+                                          .first
+                                          .name
+                                          .isNotEmpty
                                   ? userModel!.emergencyContacts.first.name
                                   : '-',
                             ),
@@ -298,20 +325,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               label: 'Nomor Telepon',
                               value:
                                   userModel!.emergencyContacts.isNotEmpty &&
-                                      userModel!.emergencyContacts.first
-                                      .phoneNumber
-                                      .isNotEmpty
-                                  ? userModel!.emergencyContacts.first.phoneNumber
+                                      userModel!
+                                          .emergencyContacts
+                                          .first
+                                          .phoneNumber
+                                          .isNotEmpty
+                                  ? userModel!
+                                        .emergencyContacts
+                                        .first
+                                        .phoneNumber
                                   : '-',
                             ),
                             _InfoRow(
                               label: 'Hubungan',
                               value:
                                   userModel!.emergencyContacts.isNotEmpty &&
-                                      userModel!.emergencyContacts.first
-                                      .relationship
-                                      .isNotEmpty
-                                  ? userModel!.emergencyContacts.first.relationship
+                                      userModel!
+                                          .emergencyContacts
+                                          .first
+                                          .relationship
+                                          .isNotEmpty
+                                  ? userModel!
+                                        .emergencyContacts
+                                        .first
+                                        .relationship
                                   : '-',
                             ),
                           ],

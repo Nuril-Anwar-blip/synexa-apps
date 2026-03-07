@@ -1,3 +1,30 @@
+/// ====================================================================
+/// File: app_theme.dart
+/// --------------------------------------------------------------------
+/// Konfigurasi Tema Aplikasi (App Theme Configuration)
+///
+/// Dokumen ini mendefinisikan tema aplikasi untuk mode Light dan Dark.
+/// Menggunakan Material Design 3 dengan kustomisasi warna.
+///
+/// Fitur:
+/// - Light Theme: Cocok untuk penggunaan di siang hari
+/// - Dark Theme: Cocok untuk penggunaan di malam hari
+/// - Kustomisasi Colors, Typography, dan Component Themes
+/// - ColorScheme berdasarkan primary color (Teal)
+///
+/// Komponen yang dikustomisasi:
+/// - AppBarTheme
+/// - CardTheme
+/// - InputDecorationTheme
+/// - ElevatedButtonTheme
+/// - OutlinedButtonTheme
+/// - FloatingActionButtonTheme
+/// - BottomNavigationBarTheme
+/// - TextTheme
+///
+/// Author: Tim Developer Synexa
+/// ====================================================================
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -15,7 +42,7 @@ class AppTheme {
   const AppTheme._();
 
   /// Mengambil konfigurasi tema (ThemeData) berdasarkan preferensi pengguna.
-  /// 
+  ///
   /// [isDark] menentukan apakah menggunakan tema gelap.
   /// [fontFamily] nama font dari Google Fonts.
   /// [fontSizeScale] faktor pengali ukuran font (e.g. 1.0, 1.2).
@@ -33,7 +60,9 @@ class AppTheme {
     }
 
     // 2. Dapatkan basis data tema (Light/Dark)
-    final baseData = isDark ? _getDarkData(effectiveFontFamily) : _getData(effectiveFontFamily);
+    final baseData = isDark
+        ? _getDarkData(effectiveFontFamily)
+        : _getData(effectiveFontFamily);
 
     // 3. Konfigurasi TextTheme dengan Google Fonts
     TextTheme textTheme = GoogleFonts.getTextTheme(
@@ -47,21 +76,19 @@ class AppTheme {
 
     // 5. Sesuaikan warna teks berdasarkan kecerahan tema
     final color = isDark ? Colors.white : AppColor.text;
-    textTheme = textTheme.apply(
-      bodyColor: color,
-      displayColor: color,
-    );
+    textTheme = textTheme.apply(bodyColor: color, displayColor: color);
 
     return baseData.copyWith(
       textTheme: textTheme,
       primaryColor: AppColor.primary,
-      colorScheme: ColorScheme.fromSwatch(
-        primarySwatch: AppColor.primary,
-        brightness: isDark ? Brightness.dark : Brightness.light,
-      ).copyWith(
-        surface: isDark ? AppColor.darkSurface : AppColor.background,
-        onSurface: isDark ? AppColor.darkText : AppColor.text,
-      ),
+      colorScheme:
+          ColorScheme.fromSwatch(
+            primarySwatch: AppColor.primary,
+            brightness: isDark ? Brightness.dark : Brightness.light,
+          ).copyWith(
+            surface: isDark ? AppColor.darkSurface : AppColor.background,
+            onSurface: isDark ? AppColor.darkText : AppColor.text,
+          ),
     );
   }
 
@@ -69,7 +96,7 @@ class AppTheme {
   /// Menghindari crash 'fontSize != null' pada aplikasi Flutter.
   static TextTheme _scaleTextTheme(TextTheme base, double factor) {
     if (factor == 1.0) return base;
-    
+
     return base.copyWith(
       displayLarge: _safeScale(base.displayLarge, factor),
       displayMedium: _safeScale(base.displayMedium, factor),

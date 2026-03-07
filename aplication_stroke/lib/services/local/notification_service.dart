@@ -1,3 +1,26 @@
+/// ====================================================================
+/// File: notification_service.dart
+/// --------------------------------------------------------------------
+/// Layanan Notifikasi Lokal (Local Notification Service)
+///
+/// Dokumen ini berisi layanan untuk mengirim notifikasi lokal ke perangkat.
+/// Menggunakan Flutter Local Notifications.
+///
+/// Fitur:
+/// - Notifikasi pengingat obat (terjadwal)
+/// - Notifikasi untuk appointment
+/// - Notifikasi untuk exercise/rehab
+/// - Mendukung Android notification channels
+/// - Menggunakan timezone untuk penjadwalan
+///
+/// Cara Penggunaan:
+///   final notif = NotificationService();
+///   await notif.init();
+///   await notif.showMedicationReminder(...);
+///
+/// Author: Tim Developer Synexa
+/// ====================================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;

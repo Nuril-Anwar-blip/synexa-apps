@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../modules/settings/settings_screen.dart';
+import 'quick_settings_sheet.dart';
 
 class AppBarWithActions extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -18,22 +17,14 @@ class AppBarWithActions extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return AppBar(
       title: Text(title),
       elevation: 0,
       actions: [
         IconButton(
-          icon: const Icon(Icons.settings_rounded),
-          tooltip: 'Pengaturan',
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            );
-          },
+          icon: const Icon(Icons.tune_rounded),
+          tooltip: 'Quick Settings',
+          onPressed: () => QuickSettingsSheet.show(context),
         ),
         if (actions != null) ...actions!,
       ],

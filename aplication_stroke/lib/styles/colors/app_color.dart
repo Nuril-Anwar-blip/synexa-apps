@@ -1,3 +1,26 @@
+/// ====================================================================
+/// File: app_color.dart
+/// --------------------------------------------------------------------
+/// Definisi Warna Aplikasi (App Colors)
+///
+/// Dokumen ini berisi definisi warna yang digunakan di seluruh
+/// aplikasi Synexa. Menggunakan pallete warna yang konsisten.
+///
+/// Warna Utama:
+/// - Primary: Teal (untuk identitas brand kesehatan)
+/// - Secondary: Orange (untuk aksen)
+/// - Accent: Blue (untuk informasi)
+/// - Error: Red
+///
+/// juga mencakup warna untuk:
+/// - Background (Light/Dark)
+/// - Surface
+/// - Text (Primary/Secondary)
+/// - Status colors (Success, Warning, Info)
+///
+/// Author: Tim Developer Synexa
+/// ====================================================================
+
 import 'package:flutter/material.dart';
 
 /// Palet warna utama aplikasi.
@@ -26,4 +49,3 @@ class AppColor {
   static const Color darkSurface = Color(0xFF1E1E1E);
   static const Color darkText = Colors.white;
 }
-
