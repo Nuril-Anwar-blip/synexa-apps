@@ -5,6 +5,7 @@ import '../../../../models/emergency_contact_model.dart';
 import '../../../../models/user_model.dart';
 import '../../../../services/remote/auth_service.dart';
 import '../../../../utils/input_validator.dart';
+import '../../../../widgets/pop_up_loading.dart';
 import 'splash_screen.dart';
 import 'auth_redirect_text.dart';
 import 'gender_radio_form.dart';
@@ -248,74 +249,80 @@ class _RegisterFormState extends State<RegisterForm> {
       ),
     ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
+    return Stack(
       children: [
-        // ── Step Indicator ──────────────────────────────────────────────
-        _StepIndicator(
-          titles: _stepTitles,
-          icons: _stepIcons,
-          colors: _stepColors,
-          currentStep: _currentStep,
-          onTap: _goToStep,
-        ),
-
-        const SizedBox(height: 20),
-
-        // ── Konten Step — AnimatedSwitcher (TANPA PageView) ─────────────
-        // Kunci: tinggi mengikuti konten secara alami, tidak perlu scroll
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 320),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          transitionBuilder: (child, anim) {
-            // NOTE: `anim` already has the curve applied by AnimatedSwitcher.
-            // Do NOT wrap it in another CurvedAnimation — that causes assertion
-            // errors when values go outside [0.0, 1.0].
-            final slide = Tween<Offset>(
-              begin: const Offset(0.08, 0),
-              end: Offset.zero,
-            ).animate(anim);
-            return FadeTransition(
-              opacity: anim,
-              child: SlideTransition(position: slide, child: child),
-            );
-          },
-          child: KeyedSubtree(
-            key: ValueKey(_currentStep),
-            child: steps[_currentStep],
-          ),
-        ),
-
-        const SizedBox(height: 20),
-
-        // ── Tombol Navigasi ─────────────────────────────────────────────
-        Row(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Tombol Kembali
-            if (_currentStep > 0) ...[
-              _BackButton(onPressed: _isLoading ? null : _prevStep),
-              const SizedBox(width: 10),
-            ],
+            // ── Step Indicator ──────────────────────────────────────────────
+            _StepIndicator(
+              titles: _stepTitles,
+              icons: _stepIcons,
+              colors: _stepColors,
+              currentStep: _currentStep,
+              onTap: _goToStep,
+            ),
 
-            // Tombol Lanjut / Daftar
-            Expanded(
-              child: _NextButton(
-                label: _currentStep == 2 ? "Daftar Sekarang" : "Lanjut",
-                icon: _currentStep == 2
-                    ? Icons.check_rounded
-                    : Icons.arrow_forward_ios_rounded,
-                color: activeColor,
-                isLoading: _isLoading,
-                onPressed: _nextStep,
+            const SizedBox(height: 20),
+
+            // ── Konten Step — AnimatedSwitcher (TANPA PageView) ─────────────
+            // Kunci: tinggi mengikuti konten secara alami, tidak perlu scroll
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 320),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, anim) {
+                // NOTE: `anim` already has the curve applied by AnimatedSwitcher.
+                // Do NOT wrap it in another CurvedAnimation — that causes assertion
+                // errors when values go outside [0.0, 1.0].
+                final slide = Tween<Offset>(
+                  begin: const Offset(0.08, 0),
+                  end: Offset.zero,
+                ).animate(anim);
+                return FadeTransition(
+                  opacity: anim,
+                  child: SlideTransition(position: slide, child: child),
+                );
+              },
+              child: KeyedSubtree(
+                key: ValueKey(_currentStep),
+                child: steps[_currentStep],
               ),
             ),
+
+            const SizedBox(height: 20),
+
+            // ── Tombol Navigasi ─────────────────────────────────────────────
+            Row(
+              children: [
+                // Tombol Kembali
+                if (_currentStep > 0) ...[
+                  _BackButton(onPressed: _isLoading ? null : _prevStep),
+                  const SizedBox(width: 10),
+                ],
+
+                // Tombol Lanjut / Daftar
+                Expanded(
+                  child: _NextButton(
+                    label: _currentStep == 2 ? "Daftar Sekarang" : "Lanjut",
+                    icon: _currentStep == 2
+                        ? Icons.check_rounded
+                        : Icons.arrow_forward_ios_rounded,
+                    color: activeColor,
+                    isLoading: _isLoading,
+                    onPressed: _nextStep,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+            const AuthRedirectText(isLogin: false),
           ],
         ),
-
-        const SizedBox(height: 14),
-        const AuthRedirectText(isLogin: false),
+        // ── PopUp Loading ───────────────────────────────────────────────
+        if (_isLoading) const PopUpLoading(),
       ],
     );
   }

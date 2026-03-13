@@ -1,3 +1,24 @@
+/**
+ * ======================================================================
+ * Routes: Chat (Patient-Pharmacist Communication)
+ * ======================================================================
+ * 
+ * Deskripsi:
+ * Routes untuk fitur chat antara pasien dan apoteker. Memungkinkan
+ * komunikasi langsung untuk konsultasi tentang obat dan kesehatan.
+ * 
+ * Endpoint:
+ * - GET /chat/messages/:roomId - Ambil riwayat pesan dalam room
+ * - GET /chat/rooms/:userId - Ambil semua room chat user
+ * 
+ * Fitur:
+ * - Room chat dibuat saat pasien pertama kali berkonsultasi
+ * - Pesan disimpan di database untuk riwayat
+ * - Menggunakan Socket.io untuk real-time messaging
+ * 
+ * ======================================================================
+ */
+
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
@@ -17,7 +38,7 @@ router.get('/messages/:roomId', authenticateToken, async (req, res) => {
 
         if (rooms.length === 0) return res.status(404).json({ error: "Room not found" });
 
-        if (req.user.role !== 'admin' && rooms[0].patient_id !== req.user.id && rooms[0].worker_id !== req.user.id) {
+        if (req.user.role !== 'admin' && rooms[0].patient_id !== req.user.id && rooms[0].pharmacist_id !== req.user.id) {
             return res.status(403).json({ error: "Access Denied" });
         }
 
@@ -48,11 +69,11 @@ router.get('/rooms/:userId', authenticateToken, async (req, res) => {
         const { rows } = await db.query(`
       SELECT cr.*, 
       p.full_name as patient_name, p.photo_url as patient_photo,
-      w.full_name as worker_name, w.photo_url as worker_photo
+      w.full_name as pharmacist_name, w.photo_url as pharmacist_photo
       FROM chat_rooms cr
       JOIN users p ON cr.patient_id = p.id
-      JOIN users w ON cr.worker_id = w.id
-      WHERE cr.patient_id = $1 OR cr.worker_id = $1
+      JOIN users w ON cr.pharmacist_id = w.id
+      WHERE cr.patient_id = $1 OR cr.pharmacist_id = $1
     `, [userId]);
         res.json(rows);
     } catch (err) {

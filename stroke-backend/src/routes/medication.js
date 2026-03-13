@@ -1,7 +1,34 @@
+/**
+ * ======================================================================
+ * Routes: Medication Reminders
+ * ======================================================================
+ * 
+ * Deskripsi:
+ * Routes untuk mengelola pengingat obat pasien. Pasien dapat menambah,
+ * melihat, dan menandai obat sudah diminum.
+ * 
+ * Endpoint:
+ * - GET /medication/user/:userId - Ambil semua pengingat obat user
+ * - POST /medication - Tambah pengingat obat baru
+ * - PATCH /medication/:id/take - Tandai obat sudah diminum
+ * 
+ * Periode Obat:
+ * - "Pagi" - Diminum pagi hari
+ * - "Siang" - Diminum siang hari
+ * - "Sore" - Diminum sore hari
+ * - "Malam" - Diminum malam hari
+ * 
+ * Real-time: Menggunakan Socket.io untuk notifikasi real-time
+ * saat ada perubahan data obat.
+ * 
+ * ======================================================================
+ */
+
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
 const { authenticateToken } = require('../middleware/auth');
+const { getIO } = require('../config/socketManager');
 
 /**
  * Daftar Pengingat Obat (Isolated)
@@ -27,15 +54,17 @@ router.get('/user/:userId', authenticateToken, async (req, res) => {
  * Tambah Pengingat
  */
 router.post('/', authenticateToken, async (req, res) => {
-    const { name, time, total_stock, current_stock } = req.body;
+    const { name, time, dose, note, period, frequency } = req.body;
     const user_id = req.user.id;
 
     try {
         const { rows } = await db.query(
-            'INSERT INTO medication_reminders (user_id, name, time, total_stock, current_stock) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [user_id, name, time, total_stock, current_stock]
+            'INSERT INTO medication_reminders (user_id, name, time, dose, note, period, frequency) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [user_id, name, time, dose, note, period, frequency]
         );
         res.status(201).json(rows[0]);
+        // Emit real-time: beritahu Flutter bahwa data obat user ini berubah
+        getIO().to(user_id).emit('medication_updated', { action: 'created', data: rows[0] });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -56,13 +85,13 @@ router.patch('/:id/take', authenticateToken, async (req, res) => {
             return res.status(403).json({ error: "Access Denied" });
         }
 
-        const newStock = Math.max(0, reminders[0].current_stock - 1);
-
         const { rows: updated } = await db.query(
-            'UPDATE medication_reminders SET taken = TRUE, current_stock = $1 WHERE id = $2 RETURNING *',
-            [newStock, id]
+            'UPDATE medication_reminders SET taken = TRUE, updated_at = NOW() WHERE id = $1 RETURNING *',
+            [id]
         );
         res.json(updated[0]);
+        // Emit real-time: beritahu Flutter bahwa status obat sudah di-take
+        getIO().to(updated[0].user_id).emit('medication_updated', { action: 'taken', data: updated[0] });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

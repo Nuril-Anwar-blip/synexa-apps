@@ -117,7 +117,7 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
     _listenRealtime();
     _loadReminders();
     _loadHealthcareProviders();
-    _loadExerciseCompletionStatus();
+    _listenExerciseRealtime();
   }
 
   void _listenRealtime() {
@@ -208,27 +208,26 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
     } catch (_) {}
   }
 
-  Future<void> _loadExerciseCompletionStatus() async {
+  void _listenExerciseRealtime() {
     if (_userId == null) return;
-    try {
-      final now = DateTime.now();
-      final startOfDay = DateTime(now.year, now.month, now.day).toUtc();
-      final endOfDay = startOfDay.add(const Duration(days: 1));
-      final todayKey = DateFormat('EEEE', 'id_ID').format(now).toLowerCase();
+    _supabase
+        .from('rehab_exercise_logs')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', _userId!)
+        .listen((logs) {
+          final now = DateTime.now();
+          final today = DateFormat('EEEE', 'id_ID').format(now).toLowerCase();
+          final startOfDay = DateTime(now.year, now.month, now.day);
+          
+          final hasDoneToday = logs.any((log) {
+            final completedAt = DateTime.parse(log['completed_at']).toLocal();
+            return completedAt.isAfter(startOfDay) && log['is_aborted'] == false;
+          });
 
-      final response = await _supabase
-          .from('rehab_exercise_logs')
-          .select('id')
-          .eq('user_id', _userId!)
-          .eq('is_aborted', false)
-          .gte('completed_at', startOfDay.toIso8601String())
-          .lt('completed_at', endOfDay.toIso8601String())
-          .maybeSingle();
-
-      if (mounted) {
-        setState(() => _exerciseCompletionStatus[todayKey] = response != null);
-      }
-    } catch (_) {}
+          if (mounted) {
+            setState(() => _exerciseCompletionStatus[today] = hasDoneToday);
+          }
+        });
   }
 
   Future<void> _loadHealthcareProviders() async {

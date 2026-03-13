@@ -1,3 +1,27 @@
+/**
+ * ======================================================================
+ * Routes: Rehabilitation
+ * ======================================================================
+ * 
+ * Deskripsi:
+ * Routes untuk mengelola program rehabilitasi stroke pasien. Meliputi
+ * fase rehabilitasi, latihan, progress, dan kuis.
+ * 
+ * Endpoint:
+ * - GET /rehab/phases - Ambil semua fase rehabilitasi
+ * - GET /rehab/phases/:phaseId/exercises - Ambil latihan per fase
+ * - POST /rehab/exercises/log - Catat hasil latihan
+ * - GET /rehab/progress/:userId - Ambil progress rehabilitasi user
+ * 
+ * Fase Rehabilitasi:
+ * 1. Fase Akut (0-1 minggu) - Latihan ringan
+ * 2. Fase Sub-Akut (2-4 minggu) - Latihan menengah
+ * 3. Fase Pemulihan (5-12 minggu) - Latihan intensif
+ * 4. Fase Pemeliharaan (13-26 minggu) - Pemeliharaan
+ * 
+ * ======================================================================
+ */
+
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
@@ -34,12 +58,12 @@ router.get('/phases/:phaseId/exercises', authenticateToken, async (req, res) => 
  * Log Latihan
  */
 router.post('/exercises/log', authenticateToken, async (req, res) => {
-    const { exercise_id, duration_seconds, repetitions } = req.body;
+    const { exercise_id, duration_actual_seconds, is_aborted, abort_reason } = req.body;
     const user_id = req.user.id;
     try {
         const { rows } = await db.query(
-            'INSERT INTO rehab_exercise_logs (user_id, exercise_id, duration_seconds, repetitions) VALUES ($1, $2, $3, $4) RETURNING *',
-            [user_id, exercise_id, duration_seconds, repetitions]
+            'INSERT INTO rehab_exercise_logs (user_id, exercise_id, duration_actual_seconds, is_aborted, abort_reason) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [user_id, exercise_id, duration_actual_seconds, is_aborted || false, abort_reason || null]
         );
         res.status(201).json(rows[0]);
     } catch (err) {

@@ -1,3 +1,34 @@
+/**
+ * ======================================================================
+ * Routes: Authentication
+ * ======================================================================
+ * 
+ * Deskripsi:
+ * Routes untuk registrasi dan login user. Menggunakan sistem auth lokal
+ * dengan password yang di-hash menggunakan bcrypt.
+ * 
+ * Endpoint:
+ * - POST /auth/register - Registrasi user baru
+ * - POST /auth/login - Login user dan mendapatkan JWT token
+ * 
+ * Body Request (Register):
+ * {
+ *   "email": "user@example.com",
+ *   "password": "password123",
+ *   "full_name": "Nama Lengkap",
+ *   "phone_number": "081234567890",
+ *   "role": "pasien" // atau "apoteker"
+ * }
+ * 
+ * Body Response (Success):
+ * {
+ *   "user": { "id", "email", "full_name", "role" },
+ *   "access_token": "jwt_token"
+ * }
+ * 
+ * ======================================================================
+ */
+
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
@@ -25,7 +56,7 @@ router.post('/register', async (req, res) => {
 
         const { rows } = await db.query(
             'INSERT INTO users (email, password_hash, full_name, phone_number, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, full_name, role',
-            [email, passwordHash, full_name, phone_number, role || 'patient']
+            [email, passwordHash, full_name, phone_number, role || 'pasien']
         );
 
         const user = rows[0];

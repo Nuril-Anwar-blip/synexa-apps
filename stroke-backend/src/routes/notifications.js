@@ -1,3 +1,20 @@
+/**
+ * ======================================================================
+ * Routes: Notifications
+ * ======================================================================
+ * 
+ * Deskripsi:
+ * Routes untuk mengelola notifikasi yang diterima oleh user.
+ * Notifikasi dapat berupa pengingat obat, jadwal latihan, atau
+ * pesan dari sistem.
+ * 
+ * Endpoint:
+ * - GET /notifications/user/:userId - Ambil semua notifikasi user
+ * - PATCH /notifications/:id/read - Tandai notifikasi sudah dibaca
+ * 
+ * ======================================================================
+ */
+
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');

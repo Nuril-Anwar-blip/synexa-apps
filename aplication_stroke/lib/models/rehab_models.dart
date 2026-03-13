@@ -22,6 +22,7 @@ class RehabExercise {
   final List<String> instructions;
   final String durationText;
   final int durationSeconds;
+  final String timeCategory; // 'pagi', 'siang', 'sore'
   final String? mediaUrl;
 
   RehabExercise({
@@ -31,6 +32,7 @@ class RehabExercise {
     required this.instructions,
     required this.durationText,
     required this.durationSeconds,
+    this.timeCategory = 'pagi',
     this.mediaUrl,
   });
 
@@ -58,6 +60,7 @@ class RehabExercise {
       instructions: instructions,
       durationText: map['duration_text']?.toString() ?? '${(seconds / 60).round()} menit',
       durationSeconds: seconds,
+      timeCategory: map['time_category']?.toString() ?? 'pagi',
       mediaUrl: map['media_url'] as String?,
     );
   }
@@ -67,12 +70,14 @@ class RehabProgress {
   final String userId;
   final int currentPhaseId;
   final DateTime phaseStartedAt;
+  final int streakCount;
   final DateTime? lastQuizAt;
 
   RehabProgress({
     required this.userId,
     required this.currentPhaseId,
     required this.phaseStartedAt,
+    this.streakCount = 0,
     this.lastQuizAt,
   });
 
@@ -83,9 +88,52 @@ class RehabProgress {
       phaseStartedAt: DateTime.parse(
         map['phase_started_at'] ?? DateTime.now().toIso8601String(),
       ),
+      streakCount: map['streak_count'] as int? ?? 0,
       lastQuizAt: map['last_quiz_at'] != null
           ? DateTime.tryParse(map['last_quiz_at'].toString())
           : null,
+    );
+  }
+}
+
+class RehabQuizQuestion {
+  final String id;
+  final int fromPhaseId;
+  final String questionText;
+  final List<QuizOption> options;
+  final int orderIndex;
+
+  RehabQuizQuestion({
+    required this.id,
+    required this.fromPhaseId,
+    required this.questionText,
+    required this.options,
+    this.orderIndex = 0,
+  });
+
+  factory RehabQuizQuestion.fromMap(Map<String, dynamic> map) {
+    return RehabQuizQuestion(
+      id: map['id'].toString(),
+      fromPhaseId: map['from_phase_id'] as int,
+      questionText: map['question_text']?.toString() ?? '',
+      options: (map['options'] as List? ?? [])
+          .map((o) => QuizOption.fromMap(o as Map<String, dynamic>))
+          .toList(),
+      orderIndex: map['order_index'] as int? ?? 0,
+    );
+  }
+}
+
+class QuizOption {
+  final String text;
+  final int score;
+
+  QuizOption({required this.text, required this.score});
+
+  factory QuizOption.fromMap(Map<String, dynamic> map) {
+    return QuizOption(
+      text: map['text']?.toString() ?? '',
+      score: map['score'] as int? ?? 0,
     );
   }
 }

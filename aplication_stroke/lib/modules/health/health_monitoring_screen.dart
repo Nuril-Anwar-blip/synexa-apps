@@ -16,27 +16,15 @@ class _HealthMonitoringScreenState extends State<HealthMonitoringScreen> {
   
   bool _isLoading = true;
   List<HealthLog> _bpLogs = [];
-  List<HealthLog> _bsLogs = [];
-  List<HealthLog> _weightLogs = [];
+  // Removed _isLoading and log lists as data will be handled by StreamBuilder
 
   @override
   void initState() {
     super.initState();
-    _loadAllLogs();
+    // Tidak perlu load manual, kita gunakan StreamBuilder
   }
 
-  Future<void> _loadAllLogs() async {
-    setState(() => _isLoading = true);
-    try {
-      _bpLogs = await _healthService.getHealthLogs(_userId, 'blood_pressure');
-      _bsLogs = await _healthService.getHealthLogs(_userId, 'blood_sugar');
-      _weightLogs = await _healthService.getHealthLogs(_userId, 'weight');
-    } catch (e) {
-      debugPrint('Error loading health logs: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
+  // Removed _loadAllLogs function
 
   void _showAddLogSheet(String type) {
     final systolicController = TextEditingController();
@@ -115,8 +103,8 @@ class _HealthMonitoringScreenState extends State<HealthMonitoringScreen> {
                     recordedAt: DateTime.now(),
                   );
                   await _healthService.saveHealthLog(log);
-                  Navigator.pop(context);
-                  _loadAllLogs();
+                  if (mounted) Navigator.pop(context);
+                  // Tidak perlu reload manual, stream akan menangani
                 },
                 child: const Text('Simpan Data'),
               ),
@@ -131,25 +119,39 @@ class _HealthMonitoringScreenState extends State<HealthMonitoringScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Monitoring Kesehatan')),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadAllLogs,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  _buildHealthCard('Tekanan Darah', _bpLogs.isNotEmpty ? '${_bpLogs.first.valueSystolic}/${_bpLogs.first.valueDiastolic}' : '—', 'mmHg', Colors.red, () => _showAddLogSheet('blood_pressure')),
-                  const SizedBox(height: 16),
-                  _buildHealthCard('Gula Darah', _bsLogs.isNotEmpty ? '${_bsLogs.first.valueNumeric}' : '—', 'mg/dL', Colors.orange, () => _showAddLogSheet('blood_sugar')),
-                  const SizedBox(height: 16),
-                  _buildHealthCard('Berat Badan', _weightLogs.isNotEmpty ? '${_weightLogs.first.valueNumeric}' : '—', 'kg', Colors.blue, () => _showAddLogSheet('weight')),
-                  const SizedBox(height: 32),
-                  const Text('Grafik Progres (Segera Hadir)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                  const SizedBox(height: 16),
-                  _buildChartPlaceholder(),
-                ],
-              ),
-            ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildRealtimeHealthSection('Tekanan Darah', 'blood_pressure', 'mmHg', Colors.red),
+          const SizedBox(height: 16),
+          _buildRealtimeHealthSection('Gula Darah', 'blood_sugar', 'mg/dL', Colors.orange),
+          const SizedBox(height: 16),
+          _buildRealtimeHealthSection('Berat Badan', 'weight', 'kg', Colors.blue),
+          const SizedBox(height: 32),
+          const Text('Grafik Progres (Segera Hadir)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          const SizedBox(height: 16),
+          _buildChartPlaceholder(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRealtimeHealthSection(String title, String type, String unit, Color color) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _healthService.streamHealthLogs(_userId, type),
+      builder: (context, snapshot) {
+        String value = '—';
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          final log = HealthLog.fromMap(snapshot.data!.first);
+          if (type == 'blood_pressure') {
+            value = '${log.valueSystolic ?? ''}/${log.valueDiastolic ?? ''}';
+          } else {
+            value = '${log.valueNumeric ?? ''}';
+          }
+        }
+
+        return _buildHealthCard(title, value, unit, color, () => _showAddLogSheet(type));
+      },
     );
   }
 

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'auth/onboarding_screen.dart';
+import 'modules/rehab/rehab_dashboard_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,8 +13,8 @@ class _DebugApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Preview Onboarding',
-      home: OnboardingScreen(),
+      title: 'Preview Rehab Dashboard',
+      home: RehabDashboardScreen(),
     );
   }
 }

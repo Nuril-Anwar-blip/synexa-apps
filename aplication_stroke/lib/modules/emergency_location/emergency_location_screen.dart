@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class EmergencyLocationScreen extends StatefulWidget {
@@ -17,9 +18,9 @@ class EmergencyLocationScreen extends StatefulWidget {
 
 class _EmergencyLocationScreenState extends State<EmergencyLocationScreen> {
   // -------------------------------
-  // 🔥 GANTI API KEY DI SINI
+  // ✅ AMBIL API KEY DARI .ENV
   // -------------------------------
-  static const String apiKey = "AIzaSyBggaOmseqyHiiS7KYgOwquqXkdXJgc5dY";
+  final String apiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? "";
 
   final Completer<GoogleMapController> _mapController = Completer();
   LatLng? _currentLatLng;

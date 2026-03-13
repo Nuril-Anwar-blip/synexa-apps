@@ -82,8 +82,8 @@ class AppTheme {
       textTheme: textTheme,
       primaryColor: AppColor.primary,
       colorScheme:
-          ColorScheme.fromSwatch(
-            primarySwatch: AppColor.primary,
+          ColorScheme.fromSeed(
+            seedColor: AppColor.primary,
             brightness: isDark ? Brightness.dark : Brightness.light,
           ).copyWith(
             surface: isDark ? AppColor.darkSurface : AppColor.background,

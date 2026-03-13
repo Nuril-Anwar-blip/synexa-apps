@@ -72,7 +72,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
         .from('posts')
         .select('''
           *,
-          users!inner(full_name, photo_url),
+          users(full_name, photo_url),
           likes(count),
           comments(count)
         ''')
@@ -99,7 +99,6 @@ class _CommunityScreenState extends State<CommunityScreen> {
       final likesCount = postData['likes']?[0]?['count'] ?? 0;
       final commentsCount = postData['comments']?[0]?['count'] ?? 0;
 
-      postData['media_url'] = postData['image_url'];
       postData['like_count'] = likesCount;
       postData['comment_count'] = commentsCount;
       postData['user_has_liked'] = hasLiked;

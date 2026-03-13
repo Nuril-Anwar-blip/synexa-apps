@@ -4,6 +4,8 @@ import '../../models/education_model.dart';
 class EducationService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  // ─── One-shot Fetches ──────────────────────────────────────────────────────
+
   /// Mengambil semua konten edukasi.
   Future<List<EducationContent>> getAllEducation() async {
     final response = await _supabase
@@ -28,4 +30,29 @@ class EducationService {
         .map((e) => EducationContent.fromMap(e as Map<String, dynamic>))
         .toList();
   }
+
+  // ─── Realtime Streams ──────────────────────────────────────────────────────
+
+  /// Stream semua konten edukasi — UI otomatis update saat admin menambah artikel.
+  ///
+  /// Contoh pemakaian:
+  /// ```dart
+  /// StreamBuilder<List<Map<String, dynamic>>>(
+  ///   stream: EducationService().streamEducation(),
+  ///   builder: (context, snapshot) {
+  ///     if (!snapshot.hasData) return CircularProgressIndicator();
+  ///     return ListView.builder(
+  ///       itemCount: snapshot.data!.length,
+  ///       itemBuilder: (ctx, i) => Text(snapshot.data![i]['title']),
+  ///     );
+  ///   },
+  /// );
+  /// ```
+  Stream<List<Map<String, dynamic>>> streamEducation() {
+    return _supabase
+        .from('education_contents')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false);
+  }
 }
+

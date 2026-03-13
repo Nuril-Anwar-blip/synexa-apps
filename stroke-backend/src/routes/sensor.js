@@ -1,3 +1,29 @@
+/**
+ * ======================================================================
+ * Routes: Sensor Data
+ * ======================================================================
+ * 
+ * Deskripsi:
+ * Routes untuk menerima dan menyimpan data sensor dari smartwatch
+ * atau wearable device pasien. Data ini mencakup detak jantung,
+ * lokasi, dan metrik kesehatan lainnya.
+ * 
+ * Endpoint:
+ * - POST /sensor - Simpan data sensor baru
+ * - GET /sensor/history/:userId - Ambil riwayat data sensor
+ * 
+ * Tipe Sensor:
+ * - "heart_rate" - Detak jantung
+ * - "location" - Lokasi GPS
+ * - "steps" - Jumlah langkah
+ * - "sleep" - Data tidur
+ * - "activity" - Aktivitas fisik
+ * 
+ * Catatan: Data sensor dikirim oleh smartwatch melalui API ini.
+ * 
+ * ======================================================================
+ */
+
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');

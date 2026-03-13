@@ -1,0 +1,388 @@
+{
+  "@@locale": "en",
+  "appTitle": "Synexa - Stroke Recovery",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "home": "Home",
+  "@home": {
+    "description": "Home navigation label"
+  },
+  "menu": "Menu",
+  "@menu": {
+    "description": "Menu navigation label"
+  },
+  "chat": "Chat",
+  "@chat": {
+    "description": "Chat navigation label"
+  },
+  "profile": "Profile",
+  "@profile": {
+    "description": "Profile navigation label"
+  },
+  "settings": "Settings",
+  "@settings": {
+    "description": "Settings screen title"
+  },
+  "darkMode": "Dark Mode",
+  "@darkMode": {
+    "description": "Dark mode toggle label"
+  },
+  "lightMode": "Light Mode",
+  "@lightMode": {
+    "description": "Light mode toggle label"
+  },
+  "language": "Language",
+  "@language": {
+    "description": "Language selection label"
+  },
+  "fontSize": "Font Size",
+  "@fontSize": {
+    "description": "Font size setting label"
+  },
+  "fontFamily": "Font Family",
+  "@fontFamily": {
+    "description": "Font family setting label"
+  },
+  "save": "Save",
+  "@save": {
+    "description": "Save button text"
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Cancel button text"
+  },
+  "delete": "Delete",
+  "@delete": {
+    "description": "Delete button text"
+  },
+  "edit": "Edit",
+  "@edit": {
+    "description": "Edit button text"
+  },
+  "add": "Add",
+  "@add": {
+    "description": "Add button text"
+  },
+  "search": "Search",
+  "@search": {
+    "description": "Search placeholder"
+  },
+  "noData": "No data available",
+  "@noData": {
+    "description": "Empty state message"
+  },
+  "error": "Error",
+  "@error": {
+    "description": "Error title"
+  },
+  "success": "Success",
+  "@success": {
+    "description": "Success title"
+  },
+  "loading": "Loading...",
+  "@loading": {
+    "description": "Loading indicator text"
+  },
+  "welcome": "Welcome",
+  "@welcome": {
+    "description": "Welcome greeting"
+  },
+  "welcomeBack": "Welcome Back",
+  "@welcomeBack": {
+    "description": "Welcome back greeting"
+  },
+  "login": "Login",
+  "@login": {
+    "description": "Login button text"
+  },
+  "logout": "Logout",
+  "@logout": {
+    "description": "Logout button text"
+  },
+  "register": "Register",
+  "@register": {
+    "description": "Register button text"
+  },
+  "email": "Email",
+  "@email": {
+    "description": "Email field label"
+  },
+  "password": "Password",
+  "@password": {
+    "description": "Password field label"
+  },
+  "confirmPassword": "Confirm Password",
+  "@confirmPassword": {
+    "description": "Confirm password field label"
+  },
+  "forgotPassword": "Forgot Password?",
+  "@forgotPassword": {
+    "description": "Forgot password link"
+  },
+  "dontHaveAccount": "Don't have an account?",
+  "@dontHaveAccount": {
+    "description": "Sign up prompt"
+  },
+  "alreadyHaveAccount": "Already have an account?",
+  "@alreadyHaveAccount": {
+    "description": "Sign in prompt"
+  },
+  "medicationReminder": "Medication Reminder",
+  "@medicationReminder": {
+    "description": "Medication reminder screen title"
+  },
+  "medicine": "Medicine",
+  "@medicine": {
+    "description": "Medicine tab label"
+  },
+  "exercise": "Exercise",
+  "@exercise": {
+    "description": "Exercise tab label"
+  },
+  "addMedication": "Add Medication",
+  "@addMedication": {
+    "description": "Add medication button"
+  },
+  "medicationName": "Medication Name",
+  "@medicationName": {
+    "description": "Medication name field"
+  },
+  "dosage": "Dosage",
+  "@dosage": {
+    "description": "Dosage field label"
+  },
+  "frequency": "Frequency",
+  "@frequency": {
+    "description": "Frequency field label"
+  },
+  "timesPerDay": "{count} times per day",
+  "@timesPerDay": {
+    "description": "Times per day format",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "compliance": "Compliance",
+  "@compliance": {
+    "description": "Compliance rate label"
+  },
+  "stock": "Stock",
+  "@stock": {
+    "description": "Stock quantity label"
+  },
+  "remaining": "Remaining",
+  "@remaining": {
+    "description": "Remaining quantity label"
+  },
+  "taken": "Taken",
+  "@taken": {
+    "description": "Taken label"
+  },
+  "disabled": "Disabled",
+  "@disabled": {
+    "description": "Disabled status"
+  },
+  "enabled": "Enabled",
+  "@enabled": {
+    "description": "Enabled status"
+  },
+  "sos": "SOS",
+  "@sos": {
+    "description": "Emergency SOS button"
+  },
+  "emergencyContact": "Emergency Contact",
+  "@emergencyContact": {
+    "description": "Emergency contact section"
+  },
+  "callNow": "Call Now",
+  "@callNow": {
+    "description": "Call now button"
+  },
+  "dashboard": "Dashboard",
+  "@dashboard": {
+    "description": "Dashboard screen title"
+  },
+  "consultation": "Consultation",
+  "@consultation": {
+    "description": "Consultation screen title"
+  },
+  "community": "Community",
+  "@community": {
+    "description": "Community screen title"
+  },
+  "education": "Education",
+  "@education": {
+    "description": "Education screen title"
+  },
+  "healthLog": "Health Log",
+  "@healthLog": {
+    "description": "Health log screen title"
+  },
+  "strokeEducation": "Stroke Education",
+  "@strokeEducation": {
+    "description": "Stroke education title"
+  },
+  "quickActions": "Quick Actions",
+  "@quickActions": {
+    "description": "Quick actions section"
+  },
+  "recentActivity": "Recent Activity",
+  "@recentActivity": {
+    "description": "Recent activity section"
+  },
+  "notifications": "Notifications",
+  "@notifications": {
+    "description": "Notifications title"
+  },
+  "about": "About",
+  "@about": {
+    "description": "About section"
+  },
+  "version": "Version",
+  "@version": {
+    "description": "Version label"
+  },
+  "privacyPolicy": "Privacy Policy",
+  "@privacyPolicy": {
+    "description": "Privacy policy link"
+  },
+  "termsOfService": "Terms of Service",
+  "@termsOfService": {
+    "description": "Terms of service link"
+  },
+  "help": "Help",
+  "@help": {
+    "description": "Help section"
+  },
+  "logoutConfirmation": "Are you sure you want to logout?",
+  "@logoutConfirmation": {
+    "description": "Logout confirmation message"
+  },
+  "yes": "Yes",
+  "@yes": {
+    "description": "Yes button"
+  },
+  "no": "No",
+  "@no": {
+    "description": "No button"
+  },
+  "ok": "OK",
+  "@ok": {
+    "description": "OK button"
+  },
+  "small": "Small",
+  "@small": {
+    "description": "Small font size"
+  },
+  "medium": "Medium",
+  "@medium": {
+    "description": "Medium font size"
+  },
+  "large": "Large",
+  "@large": {
+    "description": "Large font size"
+  },
+  "extraLarge": "Extra Large",
+  "@extraLarge": {
+    "description": "Extra large font size"
+  },
+  "generalSettings": "General Settings",
+  "@generalSettings": {
+    "description": "General settings section"
+  },
+  "appearance": "Appearance",
+  "@appearance": {
+    "description": "Appearance section"
+  },
+  "displaySettings": "Display Settings",
+  "@displaySettings": {
+    "description": "Display settings section"
+  },
+  "accountSettings": "Account Settings",
+  "@accountSettings": {
+    "description": "Account settings section"
+  },
+  "notificationSettings": "Notification Settings",
+  "@notificationSettings": {
+    "description": "Notification settings section"
+  },
+  "alarmType": "Alarm Type",
+  "@alarmType": {
+    "description": "Alarm type label"
+  },
+  "reminderTime": "Reminder Time",
+  "@reminderTime": {
+    "description": "Reminder time label"
+  },
+  "startTime": "Start Time",
+  "@startTime": {
+    "description": "Start time label"
+  },
+  "endTime": "End Time",
+  "@endTime": {
+    "description": "End time label"
+  },
+  "everyDay": "Every Day",
+  "@everyDay": {
+    "description": "Every day option"
+  },
+  "customDays": "Custom Days",
+  "@customDays": {
+    "description": "Custom days option"
+  },
+  "monday": "Monday",
+  "@monday": {
+    "description": "Monday"
+  },
+  "tuesday": "Tuesday",
+  "@tuesday": {
+    "description": "Tuesday"
+  },
+  "wednesday": "Wednesday",
+  "@wednesday": {
+    "description": "Wednesday"
+  },
+  "thursday": "Thursday",
+  "@thursday": {
+    "description": "Thursday"
+  },
+  "friday": "Friday",
+  "@friday": {
+    "description": "Friday"
+  },
+  "saturday": "Saturday",
+  "@saturday": {
+    "description": "Saturday"
+  },
+  "sunday": "Sunday",
+  "@sunday": {
+    "description": "Sunday"
+  },
+  "selectTime": "Select Time",
+  "@selectTime": {
+    "description": "Select time prompt"
+  },
+  "noReminders": "No reminders set",
+  "@noReminders": {
+    "description": "No reminders message"
+  },
+  "tapToAdd": "Tap + to add a reminder",
+  "@tapToAdd": {
+    "description": "Tap to add hint"
+  },
+  "reminderSaved": "Reminder saved successfully",
+  "@reminderSaved": {
+    "description": "Reminder saved message"
+  },
+  "reminderDeleted": "Reminder deleted",
+  "@reminderDeleted": {
+    "description": "Reminder deleted message"
+  },
+  "confirmDelete": "Are you sure you want to delete this reminder?",
+  "@confirmDelete": {
+    "description": "Confirm delete message"
+  }
+}

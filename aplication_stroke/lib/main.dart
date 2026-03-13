@@ -23,6 +23,7 @@ import 'package:aplication_stroke/providers/theme_provider.dart';
 import 'package:aplication_stroke/providers/language_provider.dart';
 import 'package:aplication_stroke/styles/themes/app_theme.dart';
 import 'package:aplication_stroke/auth/widgets/splash_screen.dart';
+import 'package:aplication_stroke/l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -76,6 +77,7 @@ class MyApp extends StatelessWidget {
           locale: languageProvider.locale,
           supportedLocales: const [Locale('en'), Locale('id'), Locale('ms')],
           localizationsDelegates: const [
+            AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,

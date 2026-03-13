@@ -1,3 +1,24 @@
+/**
+ * ======================================================================
+ * Routes: User Management
+ * ======================================================================
+ * 
+ * Deskripsi:
+ * Routes untuk mengelola data user (profil). Mendukung role-based access:
+ * - Pasien hanya bisa melihat dan mengubah data dirinya sendiri
+ * - Admin bisa melihat dan mengubah semua user
+ * 
+ * Endpoint:
+ * - GET /users/:id - Ambil profil user berdasarkan ID
+ * - GET /users/admin/patients - Ambil semua pasien (Admin only)
+ * - GET /users/admin/apotekers - Ambil semua apoteker (Admin only)
+ * - PATCH /users/:id - Update profil user
+ * 
+ * Autentikasi: Memerlukan JWT token di header Authorization
+ * 
+ * ======================================================================
+ */
+
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
@@ -28,7 +49,7 @@ router.get('/:id', async (req, res) => {
  */
 router.get('/admin/patients', isAdmin, async (req, res) => {
     try {
-        const { rows } = await db.query("SELECT id, email, full_name, phone_number, created_at FROM users WHERE role = 'patient'");
+        const { rows } = await db.query("SELECT id, email, full_name, phone_number, created_at FROM users WHERE role = 'pasien'");
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -36,11 +57,11 @@ router.get('/admin/patients', isAdmin, async (req, res) => {
 });
 
 /**
- * Admin Only: Lihat semua tenaga kerja
+ * Admin Only: Lihat semua apoteker
  */
-router.get('/admin/workers', isAdmin, async (req, res) => {
+router.get('/admin/apotekers', isAdmin, async (req, res) => {
     try {
-        const { rows } = await db.query("SELECT id, email, full_name, phone_number, created_at FROM users WHERE role = 'worker'");
+        const { rows } = await db.query("SELECT id, email, full_name, phone_number, created_at FROM users WHERE role = 'apoteker'");
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });

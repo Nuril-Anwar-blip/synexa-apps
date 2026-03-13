@@ -81,10 +81,12 @@ class NotificationService {
   Future<void> scheduleMedicationNotification(
     String reminderId,
     String name,
-    TimeOfDay time,
-  ) async {
+    TimeOfDay time, {
+    int timeIndex = 0,
+  }) async {
     final now = tz.TZDateTime.now(tz.local);
-    final int baseId = reminderId.hashCode.abs() % 100000;
+    // baseId unik per pengingat + per jam minum (timeIndex)
+    final int baseId = (reminderId.hashCode.abs() + timeIndex) % 100000;
 
     for (int i = 0; i < 4; i++) {
       final snoozeMinutes = i * 5;
@@ -116,7 +118,6 @@ class NotificationService {
 
       final details = NotificationDetails(android: androidDetails);
 
-      // v18+: semua named parameters
       await _notifPlugin.zonedSchedule(
         id: baseId + i,
         title: i == 0
@@ -131,11 +132,31 @@ class NotificationService {
     }
   }
 
+  /// Menjadwalkan semua waktu minum obat sekaligus
+  Future<void> scheduleAllReminders(dynamic reminder) async {
+    // Parameter dynamic untuk menghindari circular dependency jika perlu, 
+    // tapi kita berasumsi ini model MedicationReminder yang memiliki .times dan .isActive
+    if (!reminder.isActive) return;
+
+    await cancelMedicationNotifications(reminder.id);
+
+    for (int i = 0; i < reminder.times.length; i++) {
+      await scheduleMedicationNotification(
+        reminder.id,
+        reminder.name,
+        reminder.times[i],
+        timeIndex: i * 10, // Beri jarak ID antar jam minum
+      );
+    }
+  }
+
   Future<void> cancelMedicationNotifications(String reminderId) async {
-    final int baseId = reminderId.hashCode.abs() % 100000;
-    for (int i = 0; i < 4; i++) {
-      // v18+: named parameter 'id'
-      await _notifPlugin.cancel(id: baseId + i);
+    // Kita hapus semua slot ID yang mungkin (asumsi maks 10 waktu minum)
+    for (int t = 0; t < 10; t++) {
+      final int baseId = (reminderId.hashCode.abs() + (t * 10)) % 100000;
+      for (int i = 0; i < 4; i++) {
+        await _notifPlugin.cancel(id: baseId + i);
+      }
     }
   }
 

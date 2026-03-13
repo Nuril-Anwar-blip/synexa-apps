@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synexa WebSocket Tester</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        :root {
+            --primary: #0d9488;
+            --secondary: #0f172a;
+            --bg: #f8fafc;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 20px; color: var(--secondary); }
+        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        h1 { color: var(--primary); border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
+        .status { padding: 10px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; }
+        .online { background: #dcfce7; color: #166534; }
+        .offline { background: #fee2e2; color: #991b1b; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; }
+        label { display: block; margin-bottom: 5px; font-size: 0.9rem; font-weight: 600; }
+        input, select, textarea { width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; }
+        button { background: var(--primary); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; transition: opacity 0.2s; }
+        button:hover { opacity: 0.9; }
+        #logs { background: #1e293b; color: #34d399; padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.85rem; margin-top: 20px; }
+        .log-entry { margin-bottom: 5px; border-left: 3px solid #34d399; padding-left: 10px; }
+        .log-time { color: #94a3b8; font-size: 0.75rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Synexa WebSocket Tester</h1>
+    <div id="status" class="status offline">Disconnected</div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>1. Connection & Identity</h3>
+            <label>Server URL</label>
+            <input type="text" id="serverUrl" value="http://localhost:3000">
+            <label>User ID (untuk receive event real-time)</label>
+            <input type="text" id="userId" placeholder="UUID User (e.g. user-123)">
+            <button onclick="connect()">Connect & Register</button>
+        </div>
+
+        <div class="card">
+            <h3>2. Chat Interaction</h3>
+            <label>Room ID</label>
+            <input type="text" id="roomId" placeholder="UUID Room (e.g. room-abc)">
+            <button onclick="joinRoom()" style="margin-bottom: 10px;">Join Room</button>
+            <label>Message Content</label>
+            <textarea id="messageContent" rows="2" placeholder="Halo, apa kabar?"></textarea>
+            <button onclick="sendMessage()" style="background: var(--secondary);">Send Message</button>
+        </div>
+    </div>
+
+    <div id="logs">
+        <div class="log-entry">System ready. Click connect to start...</div>
+    </div>
+</div>
+
+<script>
+    let socket;
+    const logs = document.getElementById('logs');
+    const statusDiv = document.getElementById('status');
+
+    function addLog(msg, type = 'info') {
+        const time = new Date().toLocaleTimeString();
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        div.innerHTML = `<span class="log-time">[${time}]</span> <strong>${type.toUpperCase()}:</strong> ${msg}`;
+        logs.prepend(div);
+    }
+
+    function connect() {
+        const url = document.getElementById('serverUrl').value;
+        const uid = document.getElementById('userId').value;
+
+        if (socket) socket.disconnect();
+
+        addLog(`Attempting to connect to ${url}...`);
+        socket = io(url);
+
+        socket.on('connect', () => {
+            statusDiv.innerText = 'Connected';
+            statusDiv.className = 'status online';
+            addLog('WebSocket Connected!');
+
+            if (uid) {
+                socket.emit('register_user', uid);
+                addLog(`Emitted 'register_user' with ID: ${uid}`);
+            }
+        });
+
+        socket.on('disconnect', () => {
+            statusDiv.innerText = 'Disconnected';
+            statusDiv.className = 'status offline';
+            addLog('WebSocket Disconnected', 'warn');
+        });
+
+        // Event Listeners
+        socket.on('receive_message', (data) => {
+            addLog(`New Message in ${data.roomId}: ${data.content} (from: ${data.senderName})`, 'chat');
+            console.log('Receive Message:', data);
+        });
+
+        socket.on('medication_updated', (data) => {
+            addLog(`Medication Update: ${data.action} - ${data.data.name}`, 'event');
+        });
+
+        socket.on('health_updated', (data) => {
+            addLog(`Health Update: ${data.action} - ${data.data.log_type}`, 'event');
+        });
+
+        socket.on('community_updated', (data) => {
+            addLog(`Community Update: ${data.action} - Post ID: ${data.data.id}`, 'event');
+        });
+
+        socket.on('emergency_alert', (data) => {
+            addLog(`🚨 EMERGENCY ALERT: ${data.status} for user ${data.user_id}`, 'critical');
+        });
+
+        socket.on('error', (err) => {
+            addLog(err, 'error');
+        });
+    }
+
+    function joinRoom() {
+        const rid = document.getElementById('roomId').value;
+        if (!socket || !socket.connected) return addLog('Connect first!', 'error');
+        if (!rid) return addLog('Room ID required', 'error');
+
+        socket.emit('join_room', rid);
+        addLog(`Joined Room: ${rid}`);
+    }
+
+    function sendMessage() {
+        const rid = document.getElementById('roomId').value;
+        const uid = document.getElementById('userId').value;
+        const msg = document.getElementById('messageContent').value;
+
+        if (!socket || !socket.connected) return addLog('Connect first!', 'error');
+        if (!rid || !msg) return addLog('Room ID and Message required', 'error');
+
+        const payload = {
+            roomId: rid,
+            senderId: uid,
+            content: msg,
+            senderName: 'Tester User'
+        };
+
+        socket.emit('send_message', payload);
+        addLog(`Sent Message to ${rid}: ${msg}`);
+        document.getElementById('messageContent').value = '';
+    }
+</script>
+
+</body>
+</html>

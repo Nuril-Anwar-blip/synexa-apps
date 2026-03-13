@@ -2,25 +2,26 @@
 /// File: unified_main_screen.dart
 /// --------------------------------------------------------------------
 /// Layar Utama dengan Navigasi Bottom Bar
-/// 
+///
 /// Dokumen ini berisi layar utama aplikasi yang menggabungkan
 /// semua tab utama dalam satu layar dengan bottom navigation.
-/// 
+///
 /// Tab yang tersedia:
 /// - Tab 0: EnhancedHomeTab (Dashboard/Home)
 /// - Tab 1: CommunityScreen (Forum/Komunitas)
 /// - Tab 2: PatientChatDashboardScreen (Chat Konsultasi)
 /// - Tab 3: ProfileScreen (Profil Pengguna)
-/// 
+///
 /// Komponen:
-/// - Scaffold dengan extendBody: true (untuk navbarfloat)
-/// - CustomNavbar (icon-only floating bottom nav)
+/// - Scaffold dengan extendBody: true (untuk navbar floating)
+/// - CustomNavbar (dengan tombol SOS di tengah)
 /// - stream photoUrl dari Supabase untuk profile tab
-/// 
+///
 /// Author: Tim Developer Synexa
 /// ====================================================================
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Import Custom Widgets
@@ -31,6 +32,7 @@ import 'widgets/enhanced_home_tab.dart';
 import '../consultation/patient_chat_dashboard_screen.dart';
 import '../community/community_screen.dart';
 import '../profile/profile_screen.dart';
+import '../emergency_call/emergency_call_screen.dart';
 
 /// UnifiedMainScreen: wrapper for all main tabs with bottom navbar.
 class UnifiedMainScreen extends StatefulWidget {
@@ -71,6 +73,14 @@ class _UnifiedMainScreenState extends State<UnifiedMainScreen> {
     setState(() => _currentIndex = index);
   }
 
+  void _showEmergencyCall() {
+    HapticFeedback.heavyImpact();
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const EmergencyCallScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -80,6 +90,7 @@ class _UnifiedMainScreenState extends State<UnifiedMainScreen> {
         currentIndex: _currentIndex,
         onTap: _onNavTap,
         photoUrl: _photoUrl,
+        onSosTap: _showEmergencyCall,
       ),
     );
   }

@@ -1,0 +1,206 @@
+{
+    "info": {
+        "_postman_id": "8ff1f8e5-7fbf-4004-bf38-e1097b5b23ca",
+        "name": "Synexa API Collection",
+        "description": "Collection untuk menguji semua endpoint backend Synexa (Node.js Express + Socket.io + PostgreSQL)",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Auth",
+            "item": [
+                {
+                    "name": "Register Pasien (Nurul)",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"nurul@synexa.com\",\n    \"password\": \"password123\",\n    \"full_name\": \"Siti Nurul\",\n    \"phone_number\": \"081299887766\",\n    \"role\": \"pasien\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/register",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "register"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Register Apoteker (Azizah)",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"azizah@synexa.com\",\n    \"password\": \"password123\",\n    \"full_name\": \"Apoteker Azizah\",\n    \"phone_number\": \"085544332211\",\n    \"role\": \"apoteker\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/register",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "register"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Login Pasien (Nurul)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var jsonData = pm.response.json();",
+                                    "if (jsonData.access_token) {",
+                                    "    pm.environment.set(\"token\", jsonData.access_token);",
+                                    "    pm.environment.set(\"user_id\", jsonData.user.id);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"nurul@synexa.com\",\n    \"password\": \"password123\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/auth/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "login"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Medication",
+            "item": [
+                {
+                    "name": "Tambah Pengingat Obat",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Amlodipine Besylate\",\n    \"time\": \"07:00:00\",\n    \"dose\": \"5mg\",\n    \"note\": \"Minum sesudah sarapan pagi\",\n    \"period\": \"Pagi\",\n    \"frequency\": 1\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/medication",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "medication"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Community",
+            "item": [
+                {
+                    "name": "Buat Postingan",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"content\": \"Tips hari ini: Tetap aktif bergerak meskipun di dalam rumah!\",\n    \"media_url\": \"https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b\",\n    \"media_type\": \"image\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/community/posts",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "community",
+                                "posts"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:3000",
+            "type": "string"
+        },
+        {
+            "key": "token",
+            "value": "",
+            "type": "string"
+        }
+    ]
+}

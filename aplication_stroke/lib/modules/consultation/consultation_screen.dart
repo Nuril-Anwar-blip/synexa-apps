@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/remote/socket_service.dart';
 
 bool _isImageUrl(String url) {
   final lower = url.toLowerCase();
@@ -90,6 +91,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         .map((rows) => rows.map((row) => ChatMessage.fromMap(row)).toList());
     // Ambil nomor telepon penerima untuk fitur panggilan
     _loadRecipientPhone();
+    
+    // Join Socket.io room untuk real-time chat
+    SocketService.instance.joinChatRoom(widget.roomId);
   }
 
   @override
@@ -106,11 +110,12 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
     _isSending.value = true;
     try {
-      await _supabase.from('messages').insert({
-        'room_id': widget.roomId,
-        'sender_id': _currentUserId,
-        'content': content,
-      });
+      SocketService.instance.sendChatMessage(
+        roomId: widget.roomId,
+        senderId: _currentUserId!,
+        content: content,
+        senderName: 'User', // Nilai default, bisa diubah jika profil tersedia
+      );
       _textController.clear();
       _scrollToBottom();
     } catch (e) {
