@@ -17,8 +17,7 @@ class SocketService {
   bool get isConnected => _socket?.connected ?? false;
 
   // ── URL backend dari .env ─────────────────────────────────────────────────
-  String get _backendUrl =>
-      dotenv.env['BACKEND_URL'] ?? 'http://10.0.2.2:3000';
+  String get _backendUrl => dotenv.env['BACKEND_URL'] ?? 'http://10.0.2.2:3000';
 
   // ── Connect ───────────────────────────────────────────────────────────────
   /// Hubungkan ke backend dan daftarkan userId ke room-nya.
@@ -80,6 +79,17 @@ class SocketService {
     });
   }
 
+  void offReceiveMessage() => _socket?.off('receive_message');
+
+  /// Pasang listener untuk update chat room (new room, new message)
+  void onChatUpdated(Function(Map<String, dynamic>) callback) {
+    _socket?.on('chat_updated', (data) {
+      if (data is Map<String, dynamic>) callback(data);
+    });
+  }
+
+  void offChatUpdated() => _socket?.off('chat_updated');
+
   // ── Medication Real-time ──────────────────────────────────────────────────
   /// Dipanggil saat pengingat obat ditambahkan atau di-take.
   void onMedicationUpdated(Function(Map<String, dynamic>) callback) {
@@ -100,6 +110,16 @@ class SocketService {
 
   void offHealthUpdated() => _socket?.off('health_updated');
 
+  // ── Rehab Real-time ───────────────────────────────────────────────────────
+  /// Dipanggil saat ada perubahan data rehabilitasi (exercise logged, progress updated).
+  void onRehabUpdated(Function(Map<String, dynamic>) callback) {
+    _socket?.on('rehab_updated', (data) {
+      if (data is Map<String, dynamic>) callback(data);
+    });
+  }
+
+  void offRehabUpdated() => _socket?.off('rehab_updated');
+
   // ── Community Real-time ───────────────────────────────────────────────────
   /// Dipanggil saat ada postingan, komentar, atau like baru.
   void onCommunityUpdated(Function(Map<String, dynamic>) callback) {
@@ -109,6 +129,25 @@ class SocketService {
   }
 
   void offCommunityUpdated() => _socket?.off('community_updated');
+
+  // ── Notification Real-time ────────────────────────────────────────────────
+  /// Dipanggil saat ada notifikasi baru.
+  void onNewNotification(Function(Map<String, dynamic>) callback) {
+    _socket?.on('new_notification', (data) {
+      if (data is Map<String, dynamic>) callback(data);
+    });
+  }
+
+  void offNewNotification() => _socket?.off('new_notification');
+
+  /// Dipanggil saat notifikasi diupdate (misal: dibaca).
+  void onNotificationUpdated(Function(Map<String, dynamic>) callback) {
+    _socket?.on('notification_updated', (data) {
+      if (data is Map<String, dynamic>) callback(data);
+    });
+  }
+
+  void offNotificationUpdated() => _socket?.off('notification_updated');
 
   // ── Emergency Alert Real-time ─────────────────────────────────────────────
   /// Dipanggil saat sinyal SOS dikirmkan atau statusnya berubah.

@@ -1,44 +1,35 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
+import '../remote/backend_api_service.dart';
+import '../remote/socket_service.dart';
 import '../../models/rehab_models.dart';
 
 class RehabService {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final BackendApiService _apiService = BackendApiService.instance;
+  final SocketService _socketService = SocketService.instance;
 
   // ─── One-shot Fetches ──────────────────────────────────────────────────────
 
   /// Mengambil data progress fase pengguna saat ini.
   Future<RehabProgress?> getUserProgress(String userId) async {
-    final response = await _supabase
-        .from('rehab_user_progress')
-        .select()
-        .eq('user_id', userId)
-        .maybeSingle();
-    
-    if (response == null) return null;
-    return RehabProgress.fromMap(response);
+    final data = await _apiService.getRehabProgress(userId);
+    if (data == null) return null;
+    return RehabProgress.fromMap(data);
   }
 
   /// Mengambil detail fase berdasarkan ID.
   Future<RehabPhase> getPhaseDetail(int phaseId) async {
-    final response = await _supabase
-        .from('rehab_phases')
-        .select()
-        .eq('id', phaseId)
-        .single();
-    return RehabPhase.fromMap(response);
+    final phases = await _apiService.getRehabPhases();
+    final phase = phases.firstWhere(
+      (p) => p['id'] == phaseId,
+      orElse: () => throw Exception('Phase not found'),
+    );
+    return RehabPhase.fromMap(phase);
   }
 
   /// Mengambil daftar latihan untuk fase tertentu.
   Future<List<RehabExercise>> getExercises(int phaseId) async {
-    final response = await _supabase
-        .from('rehab_exercises')
-        .select()
-        .eq('phase_id', phaseId)
-        .order('name');
-    
-    return (response as List)
-        .map((e) => RehabExercise.fromMap(e as Map<String, dynamic>))
-        .toList();
+    final data = await _apiService.getExercisesByPhase(phaseId);
+    return data.map((e) => RehabExercise.fromMap(e)).toList();
   }
 
   // ─── Realtime Streams ──────────────────────────────────────────────────────
@@ -58,27 +49,84 @@ class RehabService {
   /// );
   /// ```
   Stream<List<Map<String, dynamic>>> streamUserProgress(String userId) {
-    return _supabase
-        .from('rehab_user_progress')
-        .stream(primaryKey: ['user_id'])  // primaryKey wajib diisi
-        .eq('user_id', userId);           // filter hanya data user ini
+    late StreamController<List<Map<String, dynamic>>> controller;
+    List<Map<String, dynamic>> currentData = [];
+
+    controller = StreamController<List<Map<String, dynamic>>>(
+      onListen: () async {
+        // Initial load
+        try {
+          final data = await _apiService.getRehabProgress(userId);
+          if (data != null) {
+            currentData = [data];
+          }
+          controller.add(currentData);
+        } catch (e) {
+          controller.addError(e);
+        }
+
+        // Listen for real-time updates
+        _socketService.onRehabUpdated((updateData) {
+          final action = updateData['action'];
+          final rehabData = updateData['data'];
+
+          if (action == 'progress_updated') {
+            currentData = [rehabData];
+            controller.add(currentData);
+          }
+        });
+      },
+      onCancel: () {
+        _socketService.offRehabUpdated();
+      },
+    );
+
+    return controller.stream;
   }
 
   /// Stream log latihan pengguna — otomatis tampil saat latihan baru dicatat.
   Stream<List<Map<String, dynamic>>> streamExerciseLogs(String userId) {
-    return _supabase
-        .from('rehab_exercise_logs')
-        .stream(primaryKey: ['id'])
-        .eq('user_id', userId);
+    late StreamController<List<Map<String, dynamic>>> controller;
+    List<Map<String, dynamic>> currentData = [];
+
+    controller = StreamController<List<Map<String, dynamic>>>(
+      onListen: () async {
+        // Initial load
+        try {
+          final data = await _apiService.getExerciseLogs(userId);
+          currentData = data;
+          controller.add(currentData);
+        } catch (e) {
+          controller.addError(e);
+        }
+
+        // Listen for real-time updates
+        _socketService.onRehabUpdated((updateData) {
+          final action = updateData['action'];
+          final rehabData = updateData['data'];
+
+          if (action == 'exercise_logged') {
+            currentData.insert(0, rehabData);
+            controller.add(currentData);
+          }
+        });
+      },
+      onCancel: () {
+        _socketService.offRehabUpdated();
+      },
+    );
+
+    return controller.stream;
   }
 
   // ─── Writes ────────────────────────────────────────────────────────────────
 
   /// Mencatat log aktivitas terakhir.
   Future<void> logActivity(String userId) async {
-    await _supabase.from('rehab_user_progress').update({
-      'phase_started_at': DateTime.now().toIso8601String(),
-    }).eq('user_id', userId);
+    await _apiService.updateRehabProgress(
+      userId: userId,
+      streakCount: null, // Will be calculated on backend
+    );
   }
 
   /// Mencatat penyelesaian sesi latihan ke log latihan.
@@ -89,14 +137,12 @@ class RehabService {
     bool isAborted = false,
     String? abortReason,
   }) async {
-    await _supabase.from('rehab_exercise_logs').insert({
-      'user_id': userId,
-      'exercise_id': exerciseId,
-      'duration_actual_seconds': durationActualSeconds,
-      'is_aborted': isAborted,
-      'abort_reason': abortReason,
-      'completed_at': DateTime.now().toIso8601String(),
-    });
+    await _apiService.logExercise(
+      exerciseId: exerciseId,
+      durationSeconds: durationActualSeconds,
+      isAborted: isAborted,
+      abortReason: abortReason,
+    );
 
     // Update last activity
     await logActivity(userId);
@@ -106,15 +152,9 @@ class RehabService {
 
   /// Mengambil daftar pertanyaan quiz untuk transisi dari fase tertentu.
   Future<List<RehabQuizQuestion>> getQuizQuestions(int phaseFrom) async {
-    final response = await _supabase
-        .from('rehab_quiz_questions')
-        .select()
-        .eq('from_phase_id', phaseFrom)
-        .order('order_index');
-    
-    return (response as List)
-        .map((e) => RehabQuizQuestion.fromMap(e as Map<String, dynamic>))
-        .toList();
+    // Note: Backend doesn't have quiz questions endpoint yet
+    // Return empty list for now
+    return [];
   }
 
   /// Mencatat percobaan kuis.
@@ -124,30 +164,18 @@ class RehabService {
     required int score,
     required bool passed,
   }) async {
-    await _supabase.from('rehab_quiz_attempts').insert({
-      'user_id': userId,
-      'from_phase_id': phaseFrom,
-      'score': score,
-      'passed': passed,
-      'responses': {}, // JSONB responses
-    });
-
+    // Note: Backend doesn't have quiz attempt endpoint yet
+    // This will be implemented when backend supports it
     if (passed) {
       await updatePhase(userId, phaseFrom + 1);
     }
-
-    // Update last quiz date
-    await _supabase.from('rehab_user_progress').update({
-      'last_quiz_at': DateTime.now().toIso8601String(),
-    }).eq('user_id', userId);
   }
 
   /// Memperbaharui fase pengguna.
   Future<void> updatePhase(String userId, int newPhaseId) async {
-    await _supabase.from('rehab_user_progress').update({
-      'current_phase_id': newPhaseId,
-      'phase_started_at': DateTime.now().toIso8601String(),
-    }).eq('user_id', userId);
+    await _apiService.updateRehabProgress(
+      userId: userId,
+      currentPhaseId: newPhaseId,
+    );
   }
 }
-

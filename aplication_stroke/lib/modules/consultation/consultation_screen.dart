@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/remote/socket_service.dart';
+import '../../services/remote/backend_api_service.dart';
 
 bool _isImageUrl(String url) {
   final lower = url.toLowerCase();
@@ -74,26 +75,26 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   final ValueNotifier<bool> _isSending = ValueNotifier<bool>(false);
 
   late final SupabaseClient _supabase;
-  late final Stream<List<ChatMessage>> _messagesStream;
+  final BackendApiService _apiService = BackendApiService.instance;
+  final SocketService _socketService = SocketService.instance;
+
+  List<ChatMessage> _messages = [];
   String? _currentUserId;
   String? _recipientPhone;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _supabase = Supabase.instance.client;
     _currentUserId = _supabase.auth.currentUser?.id;
-    _messagesStream = _supabase
-        .from('messages')
-        .stream(primaryKey: ['id'])
-        .eq('room_id', widget.roomId)
-        .order('created_at', ascending: true)
-        .map((rows) => rows.map((row) => ChatMessage.fromMap(row)).toList());
+    _loadMessages();
+    _setupSocketListener();
     // Ambil nomor telepon penerima untuk fitur panggilan
     _loadRecipientPhone();
-    
+
     // Join Socket.io room untuk real-time chat
-    SocketService.instance.joinChatRoom(widget.roomId);
+    _socketService.joinChatRoom(widget.roomId);
   }
 
   @override
@@ -101,7 +102,38 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     _textController.dispose();
     _scrollController.dispose();
     _isSending.dispose();
+    _socketService.offReceiveMessage();
     super.dispose();
+  }
+
+  Future<void> _loadMessages() async {
+    try {
+      final data = await _apiService.getMessages(widget.roomId);
+      setState(() {
+        _messages = data.map((row) => ChatMessage.fromMap(row)).toList();
+        _isLoading = false;
+      });
+      _scrollToBottom();
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal memuat pesan: $e')));
+      }
+    }
+  }
+
+  void _setupSocketListener() {
+    _socketService.onReceiveMessage((data) {
+      final newMessage = ChatMessage.fromMap(data);
+      setState(() {
+        _messages.add(newMessage);
+      });
+      _scrollToBottom();
+    });
   }
 
   Future<void> _sendMessage() async {
@@ -110,12 +142,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
     _isSending.value = true;
     try {
-      SocketService.instance.sendChatMessage(
-        roomId: widget.roomId,
-        senderId: _currentUserId!,
-        content: content,
-        senderName: 'User', // Nilai default, bisa diubah jika profil tersedia
-      );
+      await _apiService.sendMessage(roomId: widget.roomId, content: content);
       _textController.clear();
       _scrollToBottom();
     } catch (e) {
@@ -167,24 +194,18 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       final publicUrl = _supabase.storage.from(bucket).getPublicUrl(objectPath);
 
       try {
-        await _supabase.from('messages').insert({
-          'room_id': widget.roomId,
-          'sender_id': _currentUserId,
-          'content': '',
-          'metadata': {
-            'type': 'image',
-            'url': publicUrl,
-            'name': picked.name,
-            'size': await file.length(),
-          },
-        });
+        await _apiService.sendMessage(roomId: widget.roomId, content: '');
+        // Note: Backend doesn't support metadata yet, so we'll send URL as content
+        await _apiService.sendMessage(
+          roomId: widget.roomId,
+          content: publicUrl,
+        );
       } catch (_) {
-        // Fallback bila kolom 'metadata' tidak ada: kirim URL sebagai content
-        await _supabase.from('messages').insert({
-          'room_id': widget.roomId,
-          'sender_id': _currentUserId,
-          'content': publicUrl,
-        });
+        // Fallback: send URL as content
+        await _apiService.sendMessage(
+          roomId: widget.roomId,
+          content: publicUrl,
+        );
       }
       _scrollToBottom();
     } catch (e) {
@@ -218,25 +239,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       final publicUrl = _supabase.storage.from(bucket).getPublicUrl(objectPath);
 
       try {
-        await _supabase.from('messages').insert({
-          'room_id': widget.roomId,
-          'sender_id': _currentUserId,
-          'content': f.name,
-          'metadata': {
-            'type': 'file',
-            'url': publicUrl,
-            'name': f.name,
-            'size': f.size,
-            'ext': ext,
-          },
-        });
+        // Note: Backend doesn't support metadata yet, so we'll send URL as content
+        await _apiService.sendMessage(
+          roomId: widget.roomId,
+          content: '${f.name} | ${publicUrl}',
+        );
       } catch (_) {
-        // Fallback bila kolom 'metadata' tidak ada: kirim nama + URL sebagai content
-        await _supabase.from('messages').insert({
-          'room_id': widget.roomId,
-          'sender_id': _currentUserId,
-          'content': '${f.name} | ${publicUrl}',
-        });
+        // Fallback: send name + URL as content
+        await _apiService.sendMessage(
+          roomId: widget.roomId,
+          content: '${f.name} | ${publicUrl}',
+        );
       }
       _scrollToBottom();
     } catch (e) {
@@ -249,525 +262,247 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     }
   }
 
-  // Lakukan panggilan telepon menggunakan nomor penerima bila tersedia
-  Future<void> _startPhoneCall() async {
-    final phone = _recipientPhone?.trim();
-    if (phone == null || phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nomor telepon penerima tidak tersedia')),
-      );
-      return;
-    }
-    final uri = Uri.parse('tel:${phone.replaceAll(' ', '')}');
-    await launchUrl(uri);
-  }
-
-  // Buka ruang video call berbasis Jitsi menggunakan roomId
-  Future<void> _startVideoCall() async {
-    final url = Uri.parse(
-      'https://meet.jit.si/integrated_strokes_${widget.roomId}',
-    );
-    await launchUrl(url, mode: LaunchMode.externalApplication);
-  }
-
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
     });
   }
 
-  bool _isSameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final gradient = LinearGradient(
-      colors: [Colors.teal.shade50, Colors.white],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    );
-
-    if (_currentUserId == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Konsultasi')),
-        body: const Center(
-          child: Text('Anda perlu masuk sebelum mengakses konsultasi.'),
-        ),
-      );
-    }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      extendBody: true,
       appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.teal.shade900,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.teal.shade400, Colors.teal.shade200],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.white,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.white.withOpacity(0.2),
-              child: Text(
-                widget.recipientName.trim().isNotEmpty
-                    ? widget.recipientName.trim().substring(0, 1).toUpperCase()
-                    : '?',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.recipientName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 17,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    'Konsultasi aktif • Waktu nyata',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        title: Text(widget.recipientName),
+        backgroundColor: isDark ? const Color(0xFF1E2A3A) : Colors.teal,
+        foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            tooltip: 'Telepon',
-            onPressed: _startPhoneCall,
-            icon: const Icon(Icons.call, color: Colors.white),
-          ),
-          IconButton(
-            tooltip: 'Video call',
-            onPressed: _startVideoCall,
-            icon: const Icon(Icons.videocam_rounded, color: Colors.white),
-          ),
+          if (_recipientPhone != null && _recipientPhone!.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.phone),
+              onPressed: () async {
+                final url = 'tel:$_recipientPhone';
+                if (await canLaunchUrl(Uri.parse(url))) {
+                  await launchUrl(Uri.parse(url));
+                }
+              },
+            ),
         ],
       ),
-      body: Stack(
+      body: Column(
         children: [
-          Container(decoration: BoxDecoration(gradient: gradient)),
-          Column(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(24),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 18,
-                          offset: const Offset(0, -4),
+          // Messages List
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _messages.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          size: 80,
+                          color: isDark ? Colors.white24 : Colors.black12,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Belum ada pesan',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: isDark ? Colors.white54 : Colors.black45,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Mulai percakapan dengan ${widget.recipientName}',
+                          style: TextStyle(
+                            color: isDark ? Colors.white38 : Colors.black38,
+                          ),
                         ),
                       ],
                     ),
-                    child: StreamBuilder<List<ChatMessage>>(
-                      stream: _messagesStream,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                        final messages = snapshot.data ?? [];
-                        if (messages.isEmpty) {
-                          return Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.auto_awesome_outlined,
-                                  size: 56,
-                                  color: Colors.teal.shade200,
-                                ),
-                                const SizedBox(height: 12),
-                                const Text(
-                                  'Mulai percakapan Anda',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Sampaikan keluhan atau pertanyaan terkait terapi.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.grey.shade700),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
+                  )
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final message = _messages[index];
+                      final isMe = message.senderId == _currentUserId;
+                      return _MessageBubble(
+                        message: message,
+                        isMe: isMe,
+                        isDark: isDark,
+                      );
+                    },
+                  ),
+          ),
 
-                        _scrollToBottom();
-
-                        return ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
-                          itemCount: messages.length,
-                          itemBuilder: (context, index) {
-                            final message = messages[index];
-                            final showDateChip =
-                                index == 0 ||
-                                !_isSameDay(
-                                  messages[index - 1].createdAt,
-                                  message.createdAt,
-                                );
-                            final isSender = message.senderId == _currentUserId;
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                if (showDateChip)
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                    ),
-                                    child: Center(
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.teal.shade50,
-                                          borderRadius: BorderRadius.circular(
-                                            30,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.teal.shade100,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          DateFormat(
-                                            'EEEE, d MMM',
-                                            'id_ID',
-                                          ).format(message.createdAt),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.teal.shade800,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                _MessageBubble(
-                                  message: message,
-                                  isSender: isSender,
-                                ),
-                              ],
-                            );
-                          },
-                        );
-                      },
+          // Input Area
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.image),
+                  onPressed: _pickAndSendPhoto,
+                  color: Colors.teal,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.attach_file),
+                  onPressed: _pickAndSendFile,
+                  color: Colors.teal,
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _textController,
+                    decoration: InputDecoration(
+                      hintText: 'Ketik pesan...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: isDark ? Colors.white10 : Colors.grey[100],
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                     ),
+                    maxLines: null,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
-              ),
-              _MessageComposer(
-                controller: _textController,
-                isSending: _isSending,
-                onSend: _sendMessage,
-                theme: theme,
-              ),
-            ],
+                const SizedBox(width: 8),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _isSending,
+                  builder: (context, isSending, _) {
+                    return IconButton(
+                      icon: isSending
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send),
+                      onPressed: isSending ? null : _sendMessage,
+                      color: Colors.teal,
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _MessageComposer extends StatelessWidget {
-  const _MessageComposer({
-    required this.controller,
-    required this.isSending,
-    required this.onSend,
-    required this.theme,
-  });
-
-  final TextEditingController controller;
-  final ValueNotifier<bool> isSending;
-  final VoidCallback onSend;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    final parent = context.findAncestorStateOfType<_ConsultationScreenState>();
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              _ComposerIconButton(
-                icon: Icons.photo_outlined,
-                tooltip: 'Lampirkan foto',
-                onTap: parent?._pickAndSendPhoto,
-              ),
-              const SizedBox(width: 4),
-              _ComposerIconButton(
-                icon: Icons.attach_file_rounded,
-                tooltip: 'Lampirkan dokumen',
-                onTap: parent?._pickAndSendFile,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: TextField(
-                    controller: controller,
-                    minLines: 1,
-                    maxLines: 5,
-                    decoration: const InputDecoration(
-                      isCollapsed: true,
-                      border: InputBorder.none,
-                      hintText: 'Tulis pesan...',
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              ValueListenableBuilder<bool>(
-                valueListenable: isSending,
-                builder: (context, sending, _) {
-                  if (sending) {
-                    return const SizedBox(
-                      width: 42,
-                      height: 42,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    );
-                  }
-                  return CircleAvatar(
-                    radius: 22,
-                    backgroundColor: Colors.teal.shade500,
-                    child: IconButton(
-                      icon: const Icon(Icons.send_rounded, color: Colors.white),
-                      onPressed: onSend,
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message, required this.isSender});
-
   final ChatMessage message;
-  final bool isSender;
+  final bool isMe;
+  final bool isDark;
+
+  const _MessageBubble({
+    required this.message,
+    required this.isMe,
+    required this.isDark,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final bubbleColor = isSender ? Colors.teal.shade50 : Colors.white;
-    final alignment = isSender ? Alignment.centerRight : Alignment.centerLeft;
-    final textColor = isSender ? Colors.teal.shade900 : Colors.grey.shade900;
-    final meta = message.metadata;
-    final content = message.content;
-
     return Align(
-      alignment: alignment,
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
-        ),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          gradient: isSender
-              ? LinearGradient(
-                  colors: [Colors.teal.shade400, Colors.teal.shade200],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: isSender ? null : bubbleColor,
-          border: isSender ? null : Border.all(color: Colors.grey.shade200),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: isSender
-                ? const Radius.circular(16)
-                : const Radius.circular(6),
-            bottomRight: isSender
-                ? const Radius.circular(6)
-                : const Radius.circular(16),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          color: isMe
+              ? Colors.teal
+              : (isDark ? const Color(0xFF2A3A4A) : Colors.grey[200]),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
         child: Column(
-          crossAxisAlignment: isSender
-              ? CrossAxisAlignment.end
-              : CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (meta != null &&
-                meta['type'] == 'image' &&
-                (meta['url']?.toString().isNotEmpty ?? false))
+            if (message.metadata != null &&
+                message.metadata!['type'] == 'image')
               ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: AspectRatio(
-                  aspectRatio: 4 / 3,
-                  child: Image.network(
-                    meta['url'] as String,
-                    fit: BoxFit.cover,
-                    width: MediaQuery.of(context).size.width * 0.7,
-                  ),
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  message.metadata!['url'],
+                  width: 200,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 200,
+                      height: 150,
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.broken_image),
+                    );
+                  },
                 ),
-              ),
-            if (meta != null &&
-                meta['type'] == 'file' &&
-                (meta['url']?.toString().isNotEmpty ?? false))
-              InkWell(
-                onTap: () async {
-                  final url = Uri.parse(meta['url'] as String);
-                  await launchUrl(url, mode: LaunchMode.externalApplication);
-                },
+              )
+            else if (message.metadata != null &&
+                message.metadata!['type'] == 'file')
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isMe ? Colors.white24 : Colors.black12,
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white24),
-                      ),
-                      child: const Icon(Icons.insert_drive_file, size: 16),
-                    ),
+                    const Icon(Icons.insert_drive_file, size: 20),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        (meta['name']?.toString().isNotEmpty ?? false)
-                            ? meta['name'] as String
-                            : 'Lampiran',
-                        style: TextStyle(color: textColor, fontSize: 14),
+                        message.metadata!['name'] ?? 'File',
+                        style: TextStyle(
+                          color: isMe ? Colors.white : Colors.black87,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
-              ),
-            // Fallback render: jika content adalah URL gambar, tampilkan gambar.
-            if (content.trim().isNotEmpty &&
-                Uri.tryParse(content)?.hasAbsolutePath == true &&
-                _isImageUrl(content))
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  content,
-                  fit: BoxFit.cover,
-                  width: MediaQuery.of(context).size.width * 0.7,
-                ),
               )
-            else if (content.trim().isNotEmpty)
+            else
               Text(
-                content,
-                style: TextStyle(
-                  color: isSender ? Colors.white : textColor,
-                  fontSize: 15,
-                  height: 1.4,
-                ),
+                message.content,
+                style: TextStyle(color: isMe ? Colors.white : Colors.black87),
               ),
-            const SizedBox(height: 6),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: isSender
-                  ? MainAxisAlignment.end
-                  : MainAxisAlignment.start,
-              children: [
-                Text(
-                  DateFormat.Hm().format(message.createdAt.toLocal()),
-                  style: TextStyle(
-                    color: isSender
-                        ? Colors.white.withOpacity(0.85)
-                        : Colors.grey.shade600,
-                    fontSize: 11,
-                  ),
-                ),
-                if (isSender) ...[
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.done_all,
-                    size: 16,
-                    color: Colors.white.withOpacity(0.9),
-                  ),
-                ],
-              ],
+            const SizedBox(height: 4),
+            Text(
+              DateFormat('HH:mm').format(message.createdAt),
+              style: TextStyle(
+                fontSize: 10,
+                color: isMe ? Colors.white70 : Colors.black45,
+              ),
             ),
           ],
         ),
@@ -775,36 +510,3 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 }
-
-class _ComposerIconButton extends StatelessWidget {
-  const _ComposerIconButton({
-    required this.icon,
-    this.onTap,
-    required this.tooltip,
-  });
-
-  final IconData icon;
-  final VoidCallback? onTap;
-  final String tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.teal.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.teal.shade100),
-          ),
-          child: Icon(icon, color: Colors.teal.shade700, size: 20),
-        ),
-      ),
-    );
-  }
-}
-

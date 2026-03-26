@@ -1,18 +1,18 @@
--- Synexa Consolidated Database Schema
--- Last Updated: 2026-03-13
+-- Pastikan ekstensi pembuat UUID aktif di database lokal Anda
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- 1. Users Table (dengan perbaikan kritis untuk Auth)
+-- 1. Users Table
 CREATE TABLE IF NOT EXISTS public.users (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   email character varying UNIQUE,
-  password_hash text, -- Kolom krusial untuk menyimpan password ter-hash
+  password_hash text,
   full_name text DEFAULT ''::text,
   phone_number text DEFAULT ''::text,
   age integer DEFAULT 0,
   height double precision DEFAULT 0.0,
   weight double precision DEFAULT 0.0,
   gender text DEFAULT 'male'::text,
-  role text DEFAULT 'pasien'::text, -- Peran yang dinormalisasi (pasien/apoteker)
+  role text DEFAULT 'pasien'::text,
   photo_url text,
   medical_history jsonb DEFAULT '[]'::jsonb,
   drug_allergy jsonb DEFAULT '[]'::jsonb,
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS public.users (
 CREATE TABLE IF NOT EXISTS public.chat_rooms (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   patient_id uuid NOT NULL REFERENCES public.users(id),
-  pharmacist_id uuid NOT NULL REFERENCES public.users(id), -- Menggunakan pharmacist_id bukan worker_id
+  pharmacist_id uuid NOT NULL REFERENCES public.users(id),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT chat_rooms_pkey PRIMARY KEY (id)
 );
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS public.messages (
   CONSTRAINT messages_pkey PRIMARY KEY (id)
 );
 
--- 3. Medication Reminders
+-- 3. Medication Reminders (Obat)
 CREATE TABLE IF NOT EXISTS public.medication_reminders (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES public.users(id),
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS public.medication_reminders (
   CONSTRAINT medication_reminders_pkey PRIMARY KEY (id)
 );
 
--- 4. Rehab Exercise Logs
+-- 4. Rehab Exercise Logs (Latihan)
 CREATE TABLE IF NOT EXISTS public.rehab_exercises (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,

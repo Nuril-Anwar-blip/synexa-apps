@@ -1,28 +1,29 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
+import '../remote/backend_api_service.dart';
+import '../remote/socket_service.dart';
 import '../../models/health_log_model.dart';
 
 class HealthService {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final BackendApiService _apiService = BackendApiService.instance;
+  final SocketService _socketService = SocketService.instance;
 
   // ─── One-shot Fetches ──────────────────────────────────────────────────────
 
   /// Mencatat log kesehatan baru (Tensi, Gula Darah, atau Berat Badan).
   Future<void> saveHealthLog(HealthLog log) async {
-    await _supabase.from('health_logs').insert(log.toMap());
+    await _apiService.addHealthLog(
+      logType: log.logType,
+      systolic: log.valueSystolic,
+      diastolic: log.valueDiastolic,
+      value: log.valueNumeric,
+      note: log.note,
+    );
   }
 
   /// Mengambil riwayat log kesehatan pengguna berdasarkan tipe.
   Future<List<HealthLog>> getHealthLogs(String userId, String logType) async {
-    final response = await _supabase
-        .from('health_logs')
-        .select()
-        .eq('user_id', userId)
-        .eq('log_type', logType)
-        .order('recorded_at', ascending: false);
-    
-    return (response as List)
-        .map((l) => HealthLog.fromMap(l as Map<String, dynamic>))
-        .toList();
+    final data = await _apiService.getHealthLogs(userId, type: logType);
+    return data.map((l) => HealthLog.fromMap(l)).toList();
   }
 
   // ─── Realtime Streams ──────────────────────────────────────────────────────
@@ -47,24 +48,47 @@ class HealthService {
     String userId,
     String logType,
   ) {
-    return _supabase
-        .from('health_logs')
-        .stream(primaryKey: ['id'])
-        .eq('user_id', userId)
-        .order('recorded_at', ascending: false);
-    // Catatan: filter .eq('log_type') tidak tersedia di stream(),
-    // filter di sisi Dart setelah data diterima jika diperlukan.
+    // Create a stream controller
+    late StreamController<List<Map<String, dynamic>>> controller;
+    List<Map<String, dynamic>> currentData = [];
+
+    controller = StreamController<List<Map<String, dynamic>>>(
+      onListen: () async {
+        // Initial load
+        try {
+          final data = await _apiService.getHealthLogs(userId, type: logType);
+          currentData = data;
+          controller.add(currentData);
+        } catch (e) {
+          controller.addError(e);
+        }
+
+        // Listen for real-time updates
+        _socketService.onHealthUpdated((updateData) {
+          final action = updateData['action'];
+          final healthData = updateData['data'];
+
+          if (action == 'created') {
+            // Add new health log to the list
+            currentData.insert(0, healthData);
+            controller.add(currentData);
+          }
+        });
+      },
+      onCancel: () {
+        _socketService.offHealthUpdated();
+      },
+    );
+
+    return controller.stream;
   }
 
   // ─── Medication Master ────────────────────────────────────────────────────
 
   /// Mengambil data master obat untuk dropdown/autocomplete di UI.
   Future<List<Map<String, dynamic>>> getMedicationMaster() async {
-    final response = await _supabase
-        .from('medication_master')
-        .select()
-        .order('name');
-    return List<Map<String, dynamic>>.from(response);
+    // Note: Backend doesn't have medication master endpoint yet
+    // Return empty list for now
+    return [];
   }
 }
-
