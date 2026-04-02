@@ -1,21 +1,7 @@
-/// ====================================================================
-/// File: profile_screen.dart
-/// --------------------------------------------------------------------
-/// Layar Profil Pengguna
-/// 
-/// Dokumen ini menampilkan informasi profil pengguna yang sedang login.
-/// 
-/// Fitur:
-/// - Foto profil (avatar)
-/// - Nama lengkap pengguna
-/// - Email dan role (pasien/apoteker)
-/// - Tombol edit profil
-/// - Tombol pengaturan (settings)
-/// - Daftar kontak darurat
-/// - Tombol logout
-/// 
-/// Author: Tim Developer Synexa
-/// ====================================================================
+// ====================================================================
+// File: profile_screen.dart
+// Layar Profil Pengguna — Redesigned with full settings integration
+// ====================================================================
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -29,84 +15,82 @@ import '../../providers/language_provider.dart';
 import 'edit_profile_screen.dart';
 import '../../auth/login_screen.dart';
 import '../pairing_scanner/pairing_scanner_screen.dart';
-import '../../widgets/quick_settings_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with SingleTickerProviderStateMixin {
   UserModel? userModel;
   bool isLoading = true;
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
 
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _fetchProfile();
   }
 
-  Future<void> _fetchProfile() async {
-    // Pastikan widget masih ada sebelum melakukan setState
-    if (!mounted) return;
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
 
+  Future<void> _fetchProfile() async {
+    if (!mounted) return;
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
       setState(() => isLoading = false);
       return;
     }
-
     try {
       final response = await SupabaseManager.client
           .from('users')
           .select()
           .eq('id', user.id)
           .maybeSingle();
-
       if (mounted) {
         setState(() {
-          if (response != null) {
-            userModel = UserModel.fromMap(response);
-          }
+          if (response != null) userModel = UserModel.fromMap(response);
           isLoading = false;
         });
+        _animController.forward();
       }
     } catch (e) {
-      debugPrint("❌ LOG FETCH ERROR: Gagal mengambil profil: $e");
+      debugPrint("❌ LOG FETCH ERROR: $e");
       if (mounted) {
         setState(() => isLoading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Gagal memuat profil: $e")));
+        _showSnack('Gagal memuat profil: $e');
       }
     }
   }
 
-  // Di dalam class _ProfileScreenState di file profile_screen.dart
-
   Future<void> _updateProfile(Map<String, dynamic> data) async {
     final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) {
-      debugPrint("LOG UPDATE: User tidak ditemukan, update dibatalkan.");
-      return;
-    }
+    if (user == null) return;
 
-    // --- INI BAGIAN PENTINGNYA ---
-    // Kita buat Map baru untuk "menerjemahkan" kunci dari camelCase ke snake_case
     final Map<String, dynamic> dataForSupabase = {
       'full_name': data['name'],
       'phone_number': data['phoneNumber'],
       'birth_date': data['birthDate'] != null
-          ? data['birthDate'].toIso8601String()
+          ? (data['birthDate'] as DateTime).toIso8601String()
           : null,
       'gender': data['gender'],
       'weight': data['weight'],
       'height': data['height'],
       'medical_history': data['medicalHistory'],
-      'drug_allergy':
-          data['drugAllergy'], // <-- Kunci ini sekarang benar ('drug_allergy')
+      'drug_allergy': data['drugAllergy'],
       'emergency_contact':
           data['emergencyContacts']
               ?.map(
@@ -118,36 +102,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               )
               .toList() ??
           [],
-      // Pastikan photo_url juga menggunakan snake_case jika perlu,
-      // tapi biasanya dari Supabase sudah benar. Kita tambahkan secara kondisional.
     };
 
     if (data['photoUrl'] != null && (data['photoUrl'] as String).isNotEmpty) {
       dataForSupabase['photo_url'] = data['photoUrl'];
     }
 
-    debugPrint(
-      "✅ LOG UPDATE: Data payload FINAL yang dikirim ke Supabase: $dataForSupabase",
-    );
-
     try {
       await Supabase.instance.client
           .from('users')
-          .update(dataForSupabase) // <-- Gunakan Map yang sudah diterjemahkan
+          .update(dataForSupabase)
           .eq('id', user.id);
-
-      debugPrint("🎉 LOG UPDATE: SUKSES memperbarui data di Supabase.");
     } catch (e) {
-      debugPrint(
-        "❌ LOG UPDATE ERROR: Gagal saat memanggil .update() Supabase: $e",
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal memperbarui profil: $e')));
-      }
+      if (mounted) _showSnack('Gagal memperbarui profil: $e');
     }
-
     await _fetchProfile();
   }
 
@@ -155,8 +123,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (userModel == null) return;
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
-      MaterialPageRoute(
-        builder: (_) => EditProfileScreen(
+      PageRouteBuilder(
+        pageBuilder: (_, anim, __) => EditProfileScreen(
           name: userModel?.fullName ?? '',
           phoneNumber: userModel?.phoneNumber ?? '',
           birthDate: userModel?.birthDate,
@@ -168,37 +136,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
           emergencyContacts: userModel?.emergencyContacts ?? [],
           photoUrl: userModel?.photoUrl,
         ),
+        transitionsBuilder: (_, anim, __, child) => SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+          child: child,
+        ),
       ),
     );
-
-    if (result != null) {
-      await _updateProfile(result);
-    }
+    if (result != null) await _updateProfile(result);
   }
 
   Future<void> _confirmLogout() async {
     if (!mounted) return;
-    final bool? shouldLogout = await showDialog<bool>(
+    final lang = context.read<LanguageProvider>();
+    final shouldLogout = await showDialog<bool>(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          title: const Text('Konfirmasi Logout'),
-          content: const Text('Apakah Anda yakin ingin keluar?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Tidak'),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(
+          lang.translate({
+            'id': 'Konfirmasi Logout',
+            'en': 'Confirm Logout',
+            'ms': 'Pengesahan Log Keluar',
+          }),
+        ),
+        content: Text(
+          lang.translate({
+            'id': 'Apakah Anda yakin ingin keluar?',
+            'en': 'Are you sure you want to sign out?',
+            'ms': 'Adakah anda pasti mahu log keluar?',
+          }),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              lang.translate({'id': 'Tidak', 'en': 'No', 'ms': 'Tidak'}),
             ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Ya'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              lang.translate({
+                'id': 'Ya, Keluar',
+                'en': 'Yes, Logout',
+                'ms': 'Ya, Keluar',
+              }),
             ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
-
     if (shouldLogout == true) {
       await Supabase.instance.client.auth.signOut();
       if (!mounted) return;
@@ -209,436 +200,480 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /// Fitur dialog pengaturan (font, bahasa, tema) telah dipindahkan ke SettingsScreen.
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  void _showQuickSettings() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _QuickSettingsSheet(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final lang = context.watch<LanguageProvider>();
+    final themeP = context.watch<ThemeProvider>();
+    final isDark = themeP.isDarkMode;
+    final fs = themeP.fontSize;
+
     if (isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: Colors.teal.shade400),
+              const SizedBox(height: 16),
+              Text(
+                lang.translate({
+                  'id': 'Memuat profil...',
+                  'en': 'Loading profile...',
+                  'ms': 'Memuatkan profil...',
+                }),
+                style: TextStyle(color: Colors.grey.shade500),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profil'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.tune_rounded),
-            tooltip: 'Quick Settings',
-            onPressed: () => QuickSettingsSheet.show(context),
-          ),
-          IconButton(
-            icon: const Icon(Icons.edit_note_rounded),
-            onPressed: _openEditProfile,
-          ),
-        ],
-      ),
+      backgroundColor: isDark
+          ? const Color(0xFF0F1923)
+          : const Color(0xFFF4F7FB),
       body: userModel == null
-          ? const Center(
-              child: Text(
-                'Data profil tidak ditemukan.\nMohon lengkapi profil Anda.',
-                textAlign: TextAlign.center,
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _fetchProfile,
-              child: ListView(
-                physics: const BouncingScrollPhysics(
-                  parent: AlwaysScrollableScrollPhysics(),
-                ),
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).padding.bottom + 80,
-                ),
-                children: [
-                  const SizedBox(height: 12),
-
-                  /// Widget hero untuk menampilkan informasi dasar profil pengguna.
-                  _ProfileHero(
-                    name: userModel!.fullNameUI,
-                    email: userModel!.email,
-                    phone: userModel!.phoneNumberUI,
-                    photoUrl: userModel!.photoUrl,
-                    onEdit: _openEditProfile,
+          ? _buildEmptyState(lang)
+          : FadeTransition(
+              opacity: _fadeAnim,
+              child: RefreshIndicator(
+                onRefresh: _fetchProfile,
+                color: Colors.teal,
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
                   ),
-                  const SizedBox(height: 20),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      children: [
-                        _buildQuickStats(userModel!),
-                        const SizedBox(height: 20),
-                        _InfoSectionCard(
-                          title: 'Detail Pribadi',
-                          icon: Icons.badge_outlined,
+                  slivers: [
+                    _buildSliverAppBar(isDark, lang, fs),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                        child: Column(
                           children: [
-                            _InfoRow(
-                              label: 'Nomor Telepon',
-                              value: userModel!.phoneNumberUI,
+                            const SizedBox(height: 16),
+                            _buildQuickStats(userModel!, isDark, fs, lang),
+                            const SizedBox(height: 20),
+                            _buildInfoCard(
+                              title: lang.translate({
+                                'id': 'Detail Pribadi',
+                                'en': 'Personal Details',
+                                'ms': 'Butiran Peribadi',
+                              }),
+                              icon: Icons.badge_outlined,
+                              isDark: isDark,
+                              fs: fs,
+                              children: [
+                                _infoRow(
+                                  lang.translate({
+                                    'id': 'Telepon',
+                                    'en': 'Phone',
+                                    'ms': 'Telefon',
+                                  }),
+                                  userModel!.phoneNumberUI,
+                                  Icons.phone_outlined,
+                                  isDark,
+                                  fs,
+                                ),
+                                _infoRow(
+                                  'Email',
+                                  userModel!.email,
+                                  Icons.email_outlined,
+                                  isDark,
+                                  fs,
+                                ),
+                                _infoRow(
+                                  lang.translate({
+                                    'id': 'Jenis Kelamin',
+                                    'en': 'Gender',
+                                    'ms': 'Jantina',
+                                  }),
+                                  userModel!.genderUI,
+                                  Icons.wc_outlined,
+                                  isDark,
+                                  fs,
+                                ),
+                                _infoRow(
+                                  lang.translate({
+                                    'id': 'Tanggal Lahir',
+                                    'en': 'Birth Date',
+                                    'ms': 'Tarikh Lahir',
+                                  }),
+                                  _formatBirthDate(userModel!.birthDate, lang),
+                                  Icons.cake_outlined,
+                                  isDark,
+                                  fs,
+                                ),
+                              ],
                             ),
-                            _InfoRow(label: 'Email', value: userModel!.email),
-                            _InfoRow(
-                              label: 'Jenis Kelamin',
-                              value: userModel!.genderUI,
+                            const SizedBox(height: 16),
+                            _buildInfoCard(
+                              title: lang.translate({
+                                'id': 'Kondisi Medis',
+                                'en': 'Medical Condition',
+                                'ms': 'Kondisi Perubatan',
+                              }),
+                              icon: Icons.medical_services_outlined,
+                              isDark: isDark,
+                              fs: fs,
+                              children: [
+                                _chipGroupRow(
+                                  label: lang.translate({
+                                    'id': 'Riwayat Penyakit',
+                                    'en': 'Medical History',
+                                    'ms': 'Sejarah Perubatan',
+                                  }),
+                                  items: userModel!.medicalHistory
+                                      .where((e) => e.trim().isNotEmpty)
+                                      .toList(),
+                                  color: Colors.orange,
+                                  isDark: isDark,
+                                  fs: fs,
+                                ),
+                                _chipGroupRow(
+                                  label: lang.translate({
+                                    'id': 'Alergi Obat',
+                                    'en': 'Drug Allergy',
+                                    'ms': 'Alergi Ubat',
+                                  }),
+                                  items: userModel!.drugAllergy
+                                      .where((e) => e.trim().isNotEmpty)
+                                      .toList(),
+                                  color: Colors.red,
+                                  isDark: isDark,
+                                  fs: fs,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            _buildEmergencyCard(isDark, fs, lang),
+                            const SizedBox(height: 20),
+                            _buildActionButton(
+                              icon: Icons.watch_outlined,
+                              title: lang.translate({
+                                'id': 'Pair Smartwatch',
+                                'en': 'Pair Smartwatch',
+                                'ms': 'Pasang Smartwatch',
+                              }),
+                              subtitle: lang.translate({
+                                'id': 'Hubungkan perangkat wearable',
+                                'en': 'Connect wearable device',
+                                'ms': 'Sambungkan peranti boleh pakai',
+                              }),
+                              gradient: [
+                                Colors.blue.shade400,
+                                Colors.indigo.shade400,
+                              ],
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const PairingScannerScreen(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildActionButton(
+                              icon: Icons.logout_rounded,
+                              title: lang.translate({
+                                'id': 'Logout',
+                                'en': 'Logout',
+                                'ms': 'Log Keluar',
+                              }),
+                              subtitle: lang.translate({
+                                'id': 'Keluar dari akun Anda',
+                                'en': 'Sign out securely',
+                                'ms': 'Keluar dengan selamat',
+                              }),
+                              gradient: [
+                                Colors.red.shade400,
+                                Colors.pink.shade400,
+                              ],
+                              onTap: _confirmLogout,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        _InfoSectionCard(
-                          title: 'Kondisi Medis',
-                          icon: Icons.medical_services_outlined,
-                          children: [
-                            _InfoRow(
-                              label: 'Riwayat Penyakit',
-                              child: _ChipGroup(
-                                items: userModel!.medicalHistory
-                                    .where((e) => e.trim().isNotEmpty)
-                                    .toList(),
-                              ),
-                            ),
-                            _InfoRow(
-                              label: 'Alergi Obat',
-                              child: _ChipGroup(
-                                items: userModel!.drugAllergy
-                                    .where((e) => e.trim().isNotEmpty)
-                                    .toList(),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _InfoSectionCard(
-                          title: 'Kontak Darurat',
-                          icon: Icons.contact_phone_outlined,
-                          children: [
-                            _InfoRow(
-                              label: 'Nama',
-                              value:
-                                  userModel!.emergencyContacts.isNotEmpty &&
-                                      userModel!
-                                          .emergencyContacts
-                                          .first
-                                          .name
-                                          .isNotEmpty
-                                  ? userModel!.emergencyContacts.first.name
-                                  : '-',
-                            ),
-                            _InfoRow(
-                              label: 'Nomor Telepon',
-                              value:
-                                  userModel!.emergencyContacts.isNotEmpty &&
-                                      userModel!
-                                          .emergencyContacts
-                                          .first
-                                          .phoneNumber
-                                          .isNotEmpty
-                                  ? userModel!
-                                        .emergencyContacts
-                                        .first
-                                        .phoneNumber
-                                  : '-',
-                            ),
-                            _InfoRow(
-                              label: 'Hubungan',
-                              value:
-                                  userModel!.emergencyContacts.isNotEmpty &&
-                                      userModel!
-                                          .emergencyContacts
-                                          .first
-                                          .relationship
-                                          .isNotEmpty
-                                  ? userModel!
-                                        .emergencyContacts
-                                        .first
-                                        .relationship
-                                  : '-',
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        _ProfileActionButton(
-                          icon: Icons.watch_outlined,
-                          title: 'Pair Smartwatch',
-                          subtitle:
-                              'Hubungkan perangkat wearable untuk memantau data.',
-                          backgroundColor: Colors.blue.shade50,
-                          foregroundColor: Colors.blue.shade700,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const PairingScannerScreen(),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 20),
-
-                        const SizedBox(height: 12),
-                        _ProfileActionButton(
-                          icon: Icons.logout,
-                          title: 'Logout',
-                          subtitle: 'Keluar dari akun Anda dengan aman.',
-                          backgroundColor: Colors.red.shade50,
-                          foregroundColor: Colors.red.shade700,
-                          onTap: _confirmLogout,
-                        ),
-                        const SizedBox(height: 32),
-                      ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
     );
   }
 
-  Widget _buildQuickStats(UserModel user) {
-    final cards = [
-      _QuickStatCard(
-        label: 'Umur',
-        value: user.ageUI > 0 ? '${user.ageUI} th' : '-',
+  Widget _buildSliverAppBar(bool isDark, LanguageProvider lang, double fs) {
+    return SliverAppBar(
+      expandedHeight: 300,
+      pinned: true,
+      backgroundColor: isDark ? const Color(0xFF0F1923) : Colors.white,
+      elevation: 0,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.tune_rounded),
+          tooltip: 'Quick Settings',
+          onPressed: _showQuickSettings,
+        ),
+        IconButton(
+          icon: const Icon(Icons.edit_rounded),
+          onPressed: _openEditProfile,
+        ),
+        const SizedBox(width: 4),
+      ],
+      flexibleSpace: FlexibleSpaceBar(
+        background: _ProfileHeroCard(
+          name: userModel!.fullNameUI,
+          email: userModel!.email,
+          phone: userModel!.phoneNumberUI,
+          photoUrl: userModel!.photoUrl,
+          onEdit: _openEditProfile,
+          isDark: isDark,
+          fs: fs,
+          lang: lang,
+        ),
       ),
-      _QuickStatCard(
-        label: 'Tinggi',
-        value: _formatMeasurement(user.height, 'cm'),
+    );
+  }
+
+  Widget _buildEmptyState(LanguageProvider lang) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.person_off_outlined,
+              size: 72,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              lang.translate({
+                'id': 'Data profil tidak ditemukan',
+                'en': 'Profile data not found',
+                'ms': 'Data profil tidak dijumpai',
+              }),
+              style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              lang.translate({
+                'id': 'Mohon lengkapi profil Anda.',
+                'en': 'Please complete your profile.',
+                'ms': 'Sila lengkapkan profil anda.',
+              }),
+              style: TextStyle(color: Colors.grey.shade400),
+            ),
+          ],
+        ),
       ),
-      _QuickStatCard(
-        label: 'Berat',
-        value: _formatMeasurement(user.weight, 'kg'),
+    );
+  }
+
+  Widget _buildQuickStats(
+    UserModel user,
+    bool isDark,
+    double fs,
+    LanguageProvider lang,
+  ) {
+    // FIX: Kalkulasi umur yang benar
+    final age = _calculateAge(user.birthDate);
+    final stats = [
+      (
+        label: lang.translate({'id': 'Umur', 'en': 'Age', 'ms': 'Umur'}),
+        value: age > 0 ? '$age th' : '-',
+        icon: Icons.cake_outlined,
+        color: Colors.purple,
+      ),
+      (
+        label: lang.translate({'id': 'Tinggi', 'en': 'Height', 'ms': 'Tinggi'}),
+        value: _formatMeasure(user.height, 'cm'),
+        icon: Icons.height,
+        color: Colors.teal,
+      ),
+      (
+        label: lang.translate({'id': 'Berat', 'en': 'Weight', 'ms': 'Berat'}),
+        value: _formatMeasure(user.weight, 'kg'),
+        icon: Icons.monitor_weight_outlined,
+        color: Colors.orange,
       ),
     ];
 
     return Row(
-      children: [
-        for (var i = 0; i < cards.length; i++) ...[
-          if (i > 0) const SizedBox(width: 12),
-          Expanded(child: cards[i]),
-        ],
-      ],
-    );
-  }
-
-  String _formatMeasurement(num value, String unit) {
-    if (value <= 0) return '-';
-    final display = value % 1 == 0
-        ? value.toStringAsFixed(0)
-        : value.toStringAsFixed(1);
-    return '$display $unit';
-  }
-}
-
-class _ProfileHero extends StatelessWidget {
-  const _ProfileHero({
-    required this.name,
-    required this.email,
-    required this.phone,
-    required this.photoUrl,
-    required this.onEdit,
-  });
-
-  final String name;
-  final String email;
-  final String phone;
-  final String? photoUrl;
-  final VoidCallback onEdit;
-
-  @override
-  Widget build(BuildContext context) {
-    final gradient = LinearGradient(
-      colors: [Colors.teal.shade500, Colors.teal.shade300],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    );
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.teal.withOpacity(0.25),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          CircleAvatar(
-            radius: 44,
-            backgroundColor: Colors.white,
-            child: CircleAvatar(
-              radius: 40,
-              backgroundColor: Colors.white,
-              backgroundImage: (photoUrl != null && photoUrl!.isNotEmpty)
-                  ? NetworkImage(photoUrl!)
-                  : null,
-              child: (photoUrl == null || photoUrl!.isEmpty)
-                  ? Icon(Icons.person, size: 44, color: Colors.teal.shade300)
-                  : null,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            name,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 12,
-            runSpacing: 4,
-            children: [
-              _HeroInfoPill(icon: Icons.email_outlined, value: email),
-              _HeroInfoPill(icon: Icons.phone_rounded, value: phone),
-            ],
-          ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color.fromARGB(255, 77, 209, 29),
-              side: BorderSide(color: Colors.white.withOpacity(0.7)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
+      children: stats
+          .asMap()
+          .entries
+          .map(
+            (e) => Expanded(
+              child: Container(
+                margin: EdgeInsets.only(left: e.key > 0 ? 10 : 0),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 18,
+                  horizontal: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1A2636) : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: e.value.color.withOpacity(isDark ? 0.15 : 0.1),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: e.value.color.withOpacity(0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(e.value.icon, color: e.value.color, size: 20),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      e.value.value,
+                      style: TextStyle(
+                        fontSize: 18 * fs,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      e.value.label,
+                      style: TextStyle(
+                        fontSize: 11 * fs,
+                        color: Colors.grey.shade500,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            onPressed: onEdit,
-            icon: const Icon(Icons.edit, size: 18),
-            label: const Text('Edit Profil'),
-          ),
-        ],
-      ),
+          )
+          .toList(),
     );
   }
-}
 
-class _HeroInfoPill extends StatelessWidget {
-  const _HeroInfoPill({required this.icon, required this.value});
-
-  final IconData icon;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildInfoCard({
+    required String title,
+    required IconData icon,
+    required bool isDark,
+    required double fs,
+    required List<Widget> children,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 16),
-          const SizedBox(width: 6),
-          Text(
-            value,
-            style: const TextStyle(color: Colors.white, fontSize: 13),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _QuickStatCard extends StatelessWidget {
-  const _QuickStatCard({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        color: isDark ? const Color(0xFF1A2636) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey.shade600)),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: Colors.black87,
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.teal.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: Colors.teal.shade400, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16 * fs,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(
+    String label,
+    String value,
+    IconData icon,
+    bool isDark,
+    double fs,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Colors.teal.shade300),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11 * fs,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  value.isEmpty ? '-' : value,
+                  style: TextStyle(
+                    fontSize: 14 * fs,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
-}
 
-class _InfoSectionCard extends StatelessWidget {
-  const _InfoSectionCard({
-    required this.title,
-    required this.icon,
-    required this.children,
-  });
-
-  final String title;
-  final IconData icon;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: Colors.teal.shade600),
-                const SizedBox(width: 10),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ...children,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, this.value, this.child});
-
-  final String label;
-  final String? value;
-  final Widget? child;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+  Widget _chipGroupRow({
+    required String label,
+    required List<String> items,
+    required Color color,
+    required bool isDark,
+    required double fs,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Column(
@@ -646,107 +681,769 @@ class _InfoRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 11 * fs,
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-          const SizedBox(height: 4),
-          child ??
+          const SizedBox(height: 6),
+          items.isEmpty
+              ? Text(
+                  '-',
+                  style: TextStyle(
+                    fontSize: 14 * fs,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                )
+              : Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: items
+                      .map(
+                        (item) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: color.withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            item,
+                            style: TextStyle(
+                              fontSize: 12 * fs,
+                              color: color.shade700,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmergencyCard(bool isDark, double fs, LanguageProvider lang) {
+    final contacts = userModel?.emergencyContacts ?? [];
+    final first = contacts.isNotEmpty ? contacts.first : null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.red.shade400, Colors.orange.shade400],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.withOpacity(0.25),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.emergency_outlined,
+                color: Colors.white,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
               Text(
-                value ?? '-',
-                style: textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
+                lang.translate({
+                  'id': 'Kontak Darurat',
+                  'en': 'Emergency Contact',
+                  'ms': 'Kenalan Kecemasan',
+                }),
+                style: TextStyle(
+                  fontSize: 16 * fs,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (first == null || first.name.isEmpty)
+            Text(
+              lang.translate({
+                'id': 'Belum diisi',
+                'en': 'Not set yet',
+                'ms': 'Belum ditetapkan',
+              }),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 14 * fs,
+              ),
+            )
+          else ...[
+            _emergencyInfoPill(Icons.person_outline, first.name, fs),
+            const SizedBox(height: 6),
+            _emergencyInfoPill(Icons.phone_outlined, first.phoneNumber, fs),
+            const SizedBox(height: 6),
+            _emergencyInfoPill(
+              Icons.family_restroom_outlined,
+              first.relationship.isEmpty ? '-' : first.relationship,
+              fs,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _emergencyInfoPill(IconData icon, String value, double fs) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white, size: 16),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 13 * fs,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required List<Color> gradient,
+    required VoidCallback onTap,
+  }) {
+    final themeP = context.read<ThemeProvider>();
+    final fs = themeP.fontSize;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: gradient.map((c) => c.withOpacity(0.12)).toList(),
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: gradient.first.withOpacity(0.3),
+              width: 1.5,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: gradient),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 15 * fs,
+                          fontWeight: FontWeight.w700,
+                          color: gradient.first,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12 * fs,
+                          color: gradient.first.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16,
+                  color: gradient.first.withOpacity(0.6),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // FIX: Kalkulasi umur yang benar berdasarkan tanggal saat ini
+  int _calculateAge(DateTime? birthDate) {
+    if (birthDate == null) return 0;
+    final today = DateTime.now();
+    int age = today.year - birthDate.year;
+    // Kurangi 1 jika belum ulang tahun tahun ini
+    if (today.month < birthDate.month ||
+        (today.month == birthDate.month && today.day < birthDate.day)) {
+      age--;
+    }
+    return age < 0 ? 0 : age;
+  }
+
+  String _formatBirthDate(DateTime? date, LanguageProvider lang) {
+    if (date == null) return '-';
+    final months = lang.currentLanguage == 'en'
+        ? [
+            'Jan',
+            'Feb',
+            'Mar',
+            'Apr',
+            'May',
+            'Jun',
+            'Jul',
+            'Aug',
+            'Sep',
+            'Oct',
+            'Nov',
+            'Dec',
+          ]
+        : [
+            'Jan',
+            'Feb',
+            'Mar',
+            'Apr',
+            'Mei',
+            'Jun',
+            'Jul',
+            'Agt',
+            'Sep',
+            'Okt',
+            'Nov',
+            'Des',
+          ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  String _formatMeasure(num? value, String unit) {
+    if (value == null || value <= 0) return '-';
+    final display = value % 1 == 0
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+    return '$display $unit';
+  }
+}
+
+// ====================================================================
+// Profile Hero Card
+// ====================================================================
+class _ProfileHeroCard extends StatelessWidget {
+  const _ProfileHeroCard({
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.photoUrl,
+    required this.onEdit,
+    required this.isDark,
+    required this.fs,
+    required this.lang,
+  });
+
+  final String name, email, phone;
+  final String? photoUrl;
+  final VoidCallback onEdit;
+  final bool isDark;
+  final double fs;
+  final LanguageProvider lang;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF0D4A47), const Color(0xFF1A2636)]
+              : [Colors.teal.shade600, Colors.teal.shade300],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 60, 20, 28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.2),
+                    ),
+                    child: CircleAvatar(
+                      radius: 46,
+                      backgroundColor: Colors.white,
+                      backgroundImage:
+                          (photoUrl != null && photoUrl!.isNotEmpty)
+                          ? NetworkImage(photoUrl!)
+                          : null,
+                      child: (photoUrl == null || photoUrl!.isEmpty)
+                          ? Icon(
+                              Icons.person,
+                              size: 48,
+                              color: Colors.teal.shade300,
+                            )
+                          : null,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: onEdit,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.15),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.edit,
+                        size: 14,
+                        color: Colors.teal.shade600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                name,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22 * fs,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  _infoPill(Icons.email_outlined, email),
+                  _infoPill(Icons.phone_rounded, phone),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _infoPill(IconData icon, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 14),
+          const SizedBox(width: 6),
+          Text(
+            value,
+            style: TextStyle(color: Colors.white, fontSize: 12 * fs),
+          ),
         ],
       ),
     );
   }
 }
 
-class _ChipGroup extends StatelessWidget {
-  const _ChipGroup({required this.items});
-
-  final List<String> items;
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return Text(
-        'Belum ada data',
-        style: TextStyle(color: Colors.grey.shade500),
-      );
-    }
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: items
-          .map(
-            (item) => Chip(
-              label: Text(item),
-              backgroundColor: Colors.teal.shade50,
-              labelStyle: TextStyle(color: Colors.teal.shade800),
-            ),
-          )
-          .toList(),
-    );
-  }
-}
-
-class _ProfileActionButton extends StatelessWidget {
-  const _ProfileActionButton({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.backgroundColor,
-    required this.foregroundColor,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color backgroundColor;
-  final Color foregroundColor;
-  final VoidCallback onTap;
+// ====================================================================
+// Quick Settings Sheet
+// ====================================================================
+class _QuickSettingsSheet extends StatelessWidget {
+  const _QuickSettingsSheet();
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: backgroundColor,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+    final themeP = context.watch<ThemeProvider>();
+    final langP = context.watch<LanguageProvider>();
+    final isDark = themeP.isDarkMode;
+
+    final bgColor = isDark ? const Color(0xFF1A2636) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
+    String t(Map<String, String> m) => langP.translate(m);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 30,
+            offset: const Offset(0, -8),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.all(18.0),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: foregroundColor.withOpacity(0.1),
-                child: Icon(icon, color: foregroundColor),
+              // Handle bar
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade400,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: 20),
+              Text(
+                t({
+                  'id': 'Pengaturan Cepat',
+                  'en': 'Quick Settings',
+                  'ms': 'Tetapan Pantas',
+                }),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // --- TEMA ---
+              _settingSection(
+                label: t({'id': 'Tema', 'en': 'Theme', 'ms': 'Tema'}),
+                icon: Icons.palette_outlined,
+                isDark: isDark,
+                child: Row(
                   children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: foregroundColor,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    _themeButton(
+                      context: context,
+                      icon: Icons.light_mode_rounded,
+                      label: t({'id': 'Terang', 'en': 'Light', 'ms': 'Cerah'}),
+                      isSelected: !isDark,
+                      onTap: () => themeP.setThemeMode(ThemeMode.light),
+                      isDark: isDark,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(color: foregroundColor.withOpacity(0.8)),
+                    const SizedBox(width: 10),
+                    _themeButton(
+                      context: context,
+                      icon: Icons.dark_mode_rounded,
+                      label: t({'id': 'Gelap', 'en': 'Dark', 'ms': 'Gelap'}),
+                      isSelected: isDark,
+                      onTap: () => themeP.setThemeMode(ThemeMode.dark),
+                      isDark: isDark,
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: foregroundColor),
+              const SizedBox(height: 16),
+
+              // --- BAHASA ---
+              _settingSection(
+                label: t({'id': 'Bahasa', 'en': 'Language', 'ms': 'Bahasa'}),
+                icon: Icons.language_rounded,
+                isDark: isDark,
+                child: Row(
+                  children: [
+                    _langButton(
+                      context,
+                      'id',
+                      '🇮🇩',
+                      'Indonesia',
+                      langP.currentLanguage == 'id',
+                      isDark,
+                      langP,
+                    ),
+                    const SizedBox(width: 8),
+                    _langButton(
+                      context,
+                      'en',
+                      '🇬🇧',
+                      'English',
+                      langP.currentLanguage == 'en',
+                      isDark,
+                      langP,
+                    ),
+                    const SizedBox(width: 8),
+                    _langButton(
+                      context,
+                      'ms',
+                      '🇲🇾',
+                      'Melayu',
+                      langP.currentLanguage == 'ms',
+                      isDark,
+                      langP,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // --- UKURAN FONT ---
+              _settingSection(
+                label: t({
+                  'id': 'Ukuran Teks',
+                  'en': 'Text Size',
+                  'ms': 'Saiz Teks',
+                }),
+                icon: Icons.text_fields_rounded,
+                isDark: isDark,
+                child: Row(
+                  children: [
+                    _fontSizeButton(
+                      context,
+                      0.85,
+                      t({'id': 'Kecil', 'en': 'Small', 'ms': 'Kecil'}),
+                      themeP,
+                      isDark,
+                    ),
+                    const SizedBox(width: 8),
+                    _fontSizeButton(
+                      context,
+                      1.0,
+                      t({'id': 'Normal', 'en': 'Normal', 'ms': 'Normal'}),
+                      themeP,
+                      isDark,
+                    ),
+                    const SizedBox(width: 8),
+                    _fontSizeButton(
+                      context,
+                      1.2,
+                      t({'id': 'Besar', 'en': 'Large', 'ms': 'Besar'}),
+                      themeP,
+                      isDark,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _settingSection({
+    required String label,
+    required IconData icon,
+    required bool isDark,
+    required Widget child,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: Colors.teal.shade400),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade500,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        child,
+      ],
+    );
+  }
+
+  Widget _themeButton({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Colors.teal.shade400
+                : (isDark
+                      ? Colors.white.withOpacity(0.05)
+                      : Colors.grey.shade100),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected ? Colors.teal.shade400 : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.white : Colors.grey.shade400,
+                size: 22,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? Colors.white : Colors.grey.shade400,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _langButton(
+    BuildContext context,
+    String code,
+    String flag,
+    String label,
+    bool isSelected,
+    bool isDark,
+    LanguageProvider langP,
+  ) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => langP.setLanguage(code),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Colors.blue.shade400
+                : (isDark
+                      ? Colors.white.withOpacity(0.05)
+                      : Colors.grey.shade100),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            children: [
+              Text(flag, style: const TextStyle(fontSize: 20)),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? Colors.white : Colors.grey.shade400,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _fontSizeButton(
+    BuildContext context,
+    double size,
+    String label,
+    ThemeProvider themeP,
+    bool isDark,
+  ) {
+    final isSelected = (themeP.fontSize - size).abs() < 0.05;
+    final sampleSize = 13.0 * size;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => themeP.setFontSize(size),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Colors.purple.shade400
+                : (isDark
+                      ? Colors.white.withOpacity(0.05)
+                      : Colors.grey.shade100),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            children: [
+              Text(
+                'Aa',
+                style: TextStyle(
+                  fontSize: sampleSize,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? Colors.white : Colors.grey.shade400,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? Colors.white : Colors.grey.shade400,
+                ),
+              ),
             ],
           ),
         ),

@@ -20,7 +20,7 @@ class SocialAuthService {
         if (idToken == null) throw 'No ID Token found.';
 
         await _supabase.auth.signInWithIdToken(
-          provider: OAuthProvider.google,
+          provider: OAuthProvider.google, 
           idToken: idToken,
           accessToken: accessToken,
         );
