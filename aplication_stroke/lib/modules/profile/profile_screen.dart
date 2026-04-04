@@ -7,12 +7,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:aplication_stroke/modules/profile/edit_profile_screen.dart';
 import '../../supabase/supabase_client.dart';
 import '../../models/user_model.dart';
 import '../../extensions/user_model_extension.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/language_provider.dart';
-import 'edit_profile_screen.dart';
 import '../../auth/login_screen.dart';
 import '../pairing_scanner/pairing_scanner_screen.dart';
 
@@ -719,7 +719,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             item,
                             style: TextStyle(
                               fontSize: 12 * fs,
-                              color: color.shade700,
+                              color: color.withOpacity(0.9),
                               fontWeight: FontWeight.w600,
                             ),
                           ),

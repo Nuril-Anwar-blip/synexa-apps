@@ -2,10 +2,10 @@
 /// File: medication_reminder.dart
 /// --------------------------------------------------------------------
 /// Model Pengingat Obat (Medication Reminder)
-/// 
+///
 /// Dokumen ini mendefinisikan struktur data untuk pengingat obat
 /// yang akan dikirimkan kepada pengguna.
-/// 
+///
 /// Properties:
 /// - id: ID unik pengingat obat
 /// - name: Nama obat
@@ -17,7 +17,7 @@
 /// - isActive: Status aktif/nonaktif
 /// - currentStock: Stok obat saat ini
 /// - totalStock: Total stok obat
-/// 
+///
 /// Author: Tim Developer Synexa
 /// ====================================================================
 
@@ -70,11 +70,11 @@ class MedicationReminder {
   Map<String, dynamic> toMap() {
     return {
       'name': name,
-      'time': '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
+      'time':
+          '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
       'taken': taken,
       'total_stock': totalStock,
       'current_stock': currentStock,
     };
   }
 }
-
