@@ -35,6 +35,7 @@ dependencies:
   google_sign_in: ^6.2.1
   google_fonts: ^8.0.2
   alarm: ^5.2.1
+  fl_chart: ^1.2.0
 
 
 dev_dependencies:

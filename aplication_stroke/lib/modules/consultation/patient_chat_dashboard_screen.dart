@@ -1232,7 +1232,7 @@ class _PatientChatDashboardScreenState extends State<PatientChatDashboardScreen>
 
       floatingActionButton: Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).padding.bottom + 74,
+          bottom: MediaQuery.of(context).padding.bottom + 16,
         ),
         child: _StartChatFAB(
           isLoading: _isStartingChat,

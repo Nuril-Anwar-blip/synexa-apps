@@ -7,6 +7,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
+import '../../../providers/theme_provider.dart';
+import '../../../providers/language_provider.dart';
 
 bool _isImageUrl(String url) {
   final lower = url.toLowerCase();
@@ -282,24 +285,26 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final gradient = LinearGradient(
-      colors: [Colors.teal.shade50, Colors.white],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    );
+    final themeP = context.watch<ThemeProvider>();
+    final lang = context.watch<LanguageProvider>();
+    final isDark = themeP.isDarkMode;
+    final fs = themeP.fontSize;
+    String t(Map<String, String> m) => lang.translate(m);
+
+    final bg = isDark ? const Color(0xFF0A0F1E) : Colors.grey[100];
+    final cardBg = isDark ? const Color(0xFF131D2E) : Colors.white;
 
     if (_currentUserId == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Konsultasi')),
-        body: const Center(
-          child: Text('Anda perlu masuk sebelum mengakses konsultasi.'),
+        appBar: AppBar(title: Text(t({'id': 'Konsultasi', 'en': 'Consultation', 'ms': 'Konsultasi'}))),
+        body: Center(
+          child: Text(t({'id': 'Anda perlu masuk sebelum mengakses konsultasi.', 'en': 'You need to login before accessing consultation.', 'ms': 'Anda perlu log masuk sebelum mengakses konsultasi.'})),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: bg,
       extendBody: true,
       appBar: AppBar(
         elevation: 0,
@@ -346,17 +351,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                     widget.recipientName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      fontSize: 17,
+                      fontSize: 17 * fs,
                       color: Colors.white,
                     ),
                   ),
                   Text(
-                    'Konsultasi aktif • Waktu nyata',
+                    t({'id': 'Konsultasi aktif • Waktu nyata', 'en': 'Active consultation • Real-time', 'ms': 'Perundingan aktif • Masa nyata'}),
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.8),
-                      fontSize: 12,
+                      fontSize: 12 * fs,
                     ),
                   ),
                 ],
@@ -379,7 +384,15 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       ),
       body: Stack(
         children: [
-          Container(decoration: BoxDecoration(gradient: gradient)),
+          Container(
+            decoration: BoxDecoration(
+              gradient: isDark ? LinearGradient(colors: [const Color(0xFF0A0F1E), const Color(0xFF0A0F1E)]) : LinearGradient(
+                colors: [Colors.teal.shade50, Colors.white],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            )
+          ),
           Column(
             children: [
               Expanded(
@@ -387,13 +400,13 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardBg,
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(24),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
+                          color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
                           blurRadius: 18,
                           offset: const Offset(0, -4),
                         ),
@@ -417,21 +430,22 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                                 Icon(
                                   Icons.auto_awesome_outlined,
                                   size: 56,
-                                  color: Colors.teal.shade200,
+                                  color: isDark ? Colors.teal.shade700 : Colors.teal.shade200,
                                 ),
                                 const SizedBox(height: 12),
-                                const Text(
-                                  'Mulai percakapan Anda',
+                                Text(
+                                  t({'id': 'Mulai percakapan Anda', 'en': 'Start your conversation', 'ms': 'Mulakan perbualan anda'}),
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
-                                    fontSize: 18,
+                                    fontSize: 18 * fs,
+                                    color: isDark ? Colors.white : Colors.black87,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Sampaikan keluhan atau pertanyaan terkait terapi.',
+                                  t({'id': 'Sampaikan keluhan atau pertanyaan terkait terapi.', 'en': 'Share complaints or questions related to therapy.', 'ms': 'Sampaikan aduan atau soalan yang berkaitan dengan terapi.'}),
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.grey.shade700),
+                                  style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey.shade700, fontSize: 13 * fs),
                                 ),
                               ],
                             ),
@@ -468,12 +482,12 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                                           vertical: 6,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: Colors.teal.shade50,
+                                          color: isDark ? Colors.teal.shade900 : Colors.teal.shade50,
                                           borderRadius: BorderRadius.circular(
                                             30,
                                           ),
                                           border: Border.all(
-                                            color: Colors.teal.shade100,
+                                            color: isDark ? Colors.teal.shade700 : Colors.teal.shade100,
                                           ),
                                         ),
                                         child: Text(
@@ -482,9 +496,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                                             'id_ID',
                                           ).format(message.createdAt),
                                           style: TextStyle(
-                                            fontSize: 12,
+                                            fontSize: 12 * fs,
                                             fontWeight: FontWeight.w700,
-                                            color: Colors.teal.shade800,
+                                            color: isDark ? Colors.teal.shade100 : Colors.teal.shade800,
                                           ),
                                         ),
                                       ),
@@ -493,6 +507,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                                 _MessageBubble(
                                   message: message,
                                   isSender: isSender,
+                                  isDark: isDark,
+                                  fs: fs,
                                 ),
                               ],
                             );
@@ -507,7 +523,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 controller: _textController,
                 isSending: _isSending,
                 onSend: _sendMessage,
-                theme: theme,
+                isDark: isDark,
+                fs: fs,
+                t: t,
               ),
             ],
           ),
@@ -522,13 +540,17 @@ class _MessageComposer extends StatelessWidget {
     required this.controller,
     required this.isSending,
     required this.onSend,
-    required this.theme,
+    required this.isDark,
+    required this.fs,
+    required this.t,
   });
 
   final TextEditingController controller;
   final ValueNotifier<bool> isSending;
   final VoidCallback onSend;
-  final ThemeData theme;
+  final bool isDark;
+  final double fs;
+  final String Function(Map<String, String>) t;
 
   @override
   Widget build(BuildContext context) {
@@ -540,11 +562,11 @@ class _MessageComposer extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? const Color(0xFF1A2636) : Colors.white,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),
@@ -554,14 +576,16 @@ class _MessageComposer extends StatelessWidget {
             children: [
               _ComposerIconButton(
                 icon: Icons.photo_outlined,
-                tooltip: 'Lampirkan foto',
+                tooltip: t({'id': 'Lampirkan foto', 'en': 'Attach photo', 'ms': 'Lampirkan foto'}),
                 onTap: parent?._pickAndSendPhoto,
+                isDark: isDark,
               ),
               const SizedBox(width: 4),
               _ComposerIconButton(
                 icon: Icons.attach_file_rounded,
-                tooltip: 'Lampirkan dokumen',
+                tooltip: t({'id': 'Lampirkan dokumen', 'en': 'Attach file', 'ms': 'Lampirkan fail'}),
                 onTap: parent?._pickAndSendFile,
+                isDark: isDark,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -571,17 +595,19 @@ class _MessageComposer extends StatelessWidget {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: TextField(
                     controller: controller,
                     minLines: 1,
                     maxLines: 5,
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14 * fs),
+                    decoration: InputDecoration(
                       isCollapsed: true,
                       border: InputBorder.none,
-                      hintText: 'Tulis pesan...',
+                      hintText: t({'id': 'Tulis pesan...', 'en': 'Write message...', 'ms': 'Tulis mesej...'}),
+                      hintStyle: TextStyle(color: isDark ? Colors.grey.shade500 : Colors.grey.shade400, fontSize: 13 * fs)
                     ),
                   ),
                 ),
@@ -616,16 +642,18 @@ class _MessageComposer extends StatelessWidget {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message, required this.isSender});
+  const _MessageBubble({required this.message, required this.isSender, required this.isDark, required this.fs});
 
   final ChatMessage message;
   final bool isSender;
+  final bool isDark;
+  final double fs;
 
   @override
   Widget build(BuildContext context) {
-    final bubbleColor = isSender ? Colors.teal.shade50 : Colors.white;
+    final bubbleColor = isSender ? (isDark ? Colors.teal.shade800 : Colors.teal.shade50) : (isDark ? const Color(0xFF131D2E) : Colors.white);
     final alignment = isSender ? Alignment.centerRight : Alignment.centerLeft;
-    final textColor = isSender ? Colors.teal.shade900 : Colors.grey.shade900;
+    final textColor = isSender ? (isDark ? Colors.white : Colors.teal.shade900) : (isDark ? Colors.grey.shade300 : Colors.grey.shade900);
     final meta = message.metadata;
     final content = message.content;
 
@@ -640,13 +668,13 @@ class _MessageBubble extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: isSender
               ? LinearGradient(
-                  colors: [Colors.teal.shade400, Colors.teal.shade200],
+                  colors: isDark ? [Colors.teal.shade600, Colors.teal.shade400] : [Colors.teal.shade400, Colors.teal.shade200],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 )
               : null,
           color: isSender ? null : bubbleColor,
-          border: isSender ? null : Border.all(color: Colors.grey.shade200),
+          border: isSender ? null : Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -734,7 +762,7 @@ class _MessageBubble extends StatelessWidget {
                 content,
                 style: TextStyle(
                   color: isSender ? Colors.white : textColor,
-                  fontSize: 15,
+                  fontSize: 15 * fs,
                   height: 1.4,
                 ),
               ),
@@ -750,8 +778,8 @@ class _MessageBubble extends StatelessWidget {
                   style: TextStyle(
                     color: isSender
                         ? Colors.white.withOpacity(0.85)
-                        : Colors.grey.shade600,
-                    fontSize: 11,
+                        : (isDark ? Colors.grey.shade500 : Colors.grey.shade600),
+                    fontSize: 11 * fs,
                   ),
                 ),
                 if (isSender) ...[
@@ -776,11 +804,13 @@ class _ComposerIconButton extends StatelessWidget {
     required this.icon,
     this.onTap,
     required this.tooltip,
+    required this.isDark,
   });
 
   final IconData icon;
   final VoidCallback? onTap;
   final String tooltip;
+  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
@@ -792,11 +822,11 @@ class _ComposerIconButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.teal.shade50,
+            color: isDark ? Colors.teal.withOpacity(0.15) : Colors.teal.shade50,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.teal.shade100),
+            border: Border.all(color: isDark ? Colors.teal.shade800 : Colors.teal.shade100),
           ),
-          child: Icon(icon, color: Colors.teal.shade700, size: 20),
+          child: Icon(icon, color: isDark ? Colors.teal.shade200 : Colors.teal.shade700, size: 20),
         ),
       ),
     );

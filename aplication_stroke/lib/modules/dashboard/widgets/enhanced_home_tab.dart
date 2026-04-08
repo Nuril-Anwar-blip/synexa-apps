@@ -2,40 +2,40 @@
 /// File: enhanced_home_tab.dart
 /// --------------------------------------------------------------------
 /// Tab Home yang Ditingkatkan (Enhanced Home Dashboard)
-/// 
+///
 /// Dokumen ini berisi layar dashboard utama aplikasi yang menampilkan:
-/// 
+///
 /// 1. Hero Header:
 ///    - Ucapan salam berdasarkan waktu (Pagi/Siang/Malam)
 ///    - Nama pengguna
 ///    - Tombol quick settings
-/// 
+///
 /// 2. Quick Stats:
 ///    - Detak jantung terakhir (dari sensor realtime)
 ///    - Progress exercise harian
-/// 
+///
 /// 3. Search Bar:
 ///    - Pencarian global untuk fitur/artikel
-/// 
+///
 /// 4. Quick Actions:
 ///    - Akses cepat ke fitur utama (Medicines, Rehab, dll)
-/// 
+///
 /// 5. Medication Reminders:
 ///    - Daftar obat yang perlu diminum
-/// 
+///
 /// 6. Feature Grid:
 ///    - Grid ikon untuk semua fitur aplikasi
-/// 
+///
 /// 7. Healthcare Providers:
 ///    - Daftar apoteker/dokter yang tersedia
-/// 
+///
 /// 8. Emergency Section:
 ///    - Tombol panggilan darurat
-/// 
+///
 /// Fitur Realtime:
 /// - Mendengarkan data sensor (heart rate) dari Supabase Realtime
 /// - Update otomatis saat ada data baru
-/// 
+///
 /// Author: Tim Developer Synexa
 /// ====================================================================
 
@@ -47,15 +47,20 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Import Providers
 import '../../../providers/language_provider.dart';
-// Import Screens & Models
+import '../../../providers/theme_provider.dart';
+
+// Import Screens
 import '../../medication_reminder/medication_reminder_screen.dart';
 import '../../medication_reminder/models/medication_reminder.dart';
+import '../../../data/mock_medications.dart';
 import '../../consultation/patient_chat_dashboard_screen.dart';
 import '../../education/stroke_education_screen.dart';
 import '../../rehab/rehab_dashboard_screen.dart';
 import '../../health/health_monitoring_screen.dart';
 import '../../emergency_location/emergency_location_screen.dart';
+import '../../emergency_call/emergency_call_screen.dart';
 import '../../exercise/exercise_screen.dart';
+import '../../community/community_screen.dart';
 
 // Import Modular Components & Models
 import '../../../models/emergency_contact_model.dart';
@@ -190,22 +195,44 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
   }
 
   Future<void> _loadReminders() async {
-    if (_userId == null) return;
-    try {
-      _remindersStream = _supabase
-          .from('medication_reminders')
-          .stream(primaryKey: ['id'])
-          .eq('user_id', _userId!)
-          .order('time', ascending: true)
-          .map(
-            (rows) =>
-                rows.map((row) => MedicationReminder.fromMap(row)).toList(),
-          );
+    if (_userId != null) {
+      try {
+        _remindersStream = _supabase
+            .from('medication_reminders')
+            .stream(primaryKey: ['id'])
+            .eq('user_id', _userId!)
+            .order('time', ascending: true)
+            .map(
+              (rows) =>
+                  rows.map((row) => MedicationReminder.fromMap(row)).toList(),
+            );
 
-      _remindersStream.listen((reminders) {
-        if (mounted) setState(() => _reminders = reminders);
-      });
-    } catch (_) {}
+        _remindersStream.listen((reminders) {
+          if (mounted) setState(() => _reminders = reminders);
+        });
+      } catch (_) {}
+    } else {
+      if (mounted) {
+        setState(() {
+          _reminders = globalSampleMeds
+              .map(
+                (m) => MedicationReminder(
+                  id: m.id,
+                  name: m.name,
+                  dose: m.dose,
+                  note: m.note,
+                  time: m.time,
+                  period: m.period,
+                  taken: m.taken,
+                  isActive: m.isActive,
+                  currentStock: m.stock,
+                  totalStock: m.totalStock,
+                ),
+              )
+              .toList();
+        });
+      }
+    }
   }
 
   Future<void> _loadExerciseCompletionStatus() async {
@@ -732,7 +759,7 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
         gradient: [Colors.indigo.shade400, Colors.blue.shade600],
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const MedicationReminderScreen()),
+          MaterialPageRoute(builder: (_) => const MedicationReminderScreenV2()),
         ),
       ),
       _ActionData(
@@ -745,7 +772,7 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
         gradient: [Colors.green.shade400, Colors.teal.shade600],
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const ExerciseScreen()),
+          MaterialPageRoute(builder: (_) => const ExerciseScreenV2()),
         ),
       ),
       _ActionData(
@@ -758,7 +785,7 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
         gradient: [Colors.purple.shade400, Colors.indigo.shade600],
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const HealthMonitoringScreen()),
+          MaterialPageRoute(builder: (_) => const HealthMonitoringScreenV2()),
         ),
       ),
     ];
@@ -862,7 +889,7 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const MedicationReminderScreen(),
+                  builder: (_) => const MedicationReminderScreenV2(),
                 ),
               ),
               icon: const Icon(Icons.arrow_forward_ios, size: 12),
@@ -1041,7 +1068,7 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
         gradient: [Colors.green.shade400, Colors.teal.shade600],
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const ExerciseScreen()),
+          MaterialPageRoute(builder: (_) => const ExerciseScreenV2()),
         ),
         completed: _exerciseCompletionStatus.values.any((v) => v),
       ),
@@ -1079,7 +1106,7 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
         gradient: [Colors.blue.shade400, Colors.cyan.shade600],
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const HealthMonitoringScreen()),
+          MaterialPageRoute(builder: (_) => const HealthMonitoringScreenV2()),
         ),
         completed: false,
       ),

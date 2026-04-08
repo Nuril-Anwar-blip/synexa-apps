@@ -15,6 +15,7 @@ import '../../providers/theme_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../auth/login_screen.dart';
 import '../pairing_scanner/pairing_scanner_screen.dart';
+import '../settings/settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -386,6 +387,31 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ),
                             ),
                             const SizedBox(height: 12),
+                            // Settings Button
+                            _buildActionButton(
+                              icon: Icons.settings_rounded,
+                              title: lang.translate({
+                                'id': 'Pengaturan',
+                                'en': 'Settings',
+                                'ms': 'Tetapan',
+                              }),
+                              subtitle: lang.translate({
+                                'id': 'Bahasa, Tampilan & Notifikasi',
+                                'en': 'Language, Display & Notifications',
+                                'ms': 'Bahasa, Paparan & Makluman',
+                              }),
+                              gradient: [
+                                Colors.grey.shade700,
+                                Colors.grey.shade500,
+                              ],
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const SettingsScreen(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
                             _buildActionButton(
                               icon: Icons.logout_rounded,
                               title: lang.translate({
@@ -422,11 +448,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       backgroundColor: isDark ? const Color(0xFF0F1923) : Colors.white,
       elevation: 0,
       actions: [
-        IconButton(
-          icon: const Icon(Icons.tune_rounded),
-          tooltip: 'Quick Settings',
-          onPressed: _showQuickSettings,
-        ),
         IconButton(
           icon: const Icon(Icons.edit_rounded),
           onPressed: _openEditProfile,

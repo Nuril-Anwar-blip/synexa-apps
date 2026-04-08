@@ -28,6 +28,17 @@ class CommonMedications {
       defaultDose: '250 mg',
       category: 'Antiplatelet',
     ),
+    CommonMedication(
+      name: 'Dipiridamol',
+      defaultDose: '5 mg',
+      category: 'Antiplatelet',
+    ),
+    CommonMedication(
+      name: 'Aspirin + Dipiridamol',
+      defaultDose: '100 mg + 5 mg',
+      category: 'Antiplatelet',
+    ),
+
     // Obat Stroke - Statin
     CommonMedication(
       name: 'Atorvastatin',
@@ -91,6 +102,12 @@ class CommonMedications {
       defaultDose: '5 mg',
       category: 'Antikoagulan',
     ),
+    CommonMedication(
+      name: 'Dabigatran',
+      defaultDose: '10 mg',
+      category: 'Antikoagulan',
+    ),
+
     // Obat Stroke - Diuretik
     CommonMedication(
       name: 'Furosemide',
@@ -143,7 +160,7 @@ class CommonMedications {
   ];
 
   static List<String> get names => list.map((m) => m.name).toList();
-  
+
   static CommonMedication? findByName(String name) {
     try {
       return list.firstWhere((m) => m.name.toLowerCase() == name.toLowerCase());
@@ -152,5 +169,3 @@ class CommonMedications {
     }
   }
 }
-
-

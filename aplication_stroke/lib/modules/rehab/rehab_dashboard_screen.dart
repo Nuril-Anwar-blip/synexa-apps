@@ -875,7 +875,16 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen>
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => ExerciseSessionScreen(exercise: exercise),
+                      builder: (_) => ExerciseSessionScreen(
+                        exercise: MockExercise(
+                          id: exercise.id,
+                          name: exercise.name,
+                          instructions: exercise.instructions,
+                          durationSeconds: exercise.durationSeconds,
+                          durationText: exercise.durationText,
+                          mediaUrl: exercise.mediaUrl,
+                        ),
+                      ),
                     ),
                   ),
                 ),

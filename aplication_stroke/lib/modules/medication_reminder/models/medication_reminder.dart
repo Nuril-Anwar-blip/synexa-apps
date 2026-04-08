@@ -23,6 +23,8 @@
 
 import 'package:flutter/material.dart';
 
+List<MedicationReminder> globalMedicationReminders = [];
+
 class MedicationReminder {
   final String id;
   final String name;
@@ -35,7 +37,7 @@ class MedicationReminder {
   final int currentStock;
   final int totalStock;
 
-  const MedicationReminder({
+  MedicationReminder({
     required this.id,
     required this.name,
     required this.dose,
@@ -47,6 +49,32 @@ class MedicationReminder {
     this.currentStock = 0,
     this.totalStock = 0,
   });
+
+  MedicationReminder copyWith({
+    String? id,
+    String? name,
+    String? dose,
+    String? note,
+    TimeOfDay? time,
+    String? period,
+    bool? taken,
+    bool? isActive,
+    int? currentStock,
+    int? totalStock,
+  }) {
+    return MedicationReminder(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      dose: dose ?? this.dose,
+      note: note ?? this.note,
+      time: time ?? this.time,
+      period: period ?? this.period,
+      taken: taken ?? this.taken,
+      isActive: isActive ?? this.isActive,
+      currentStock: currentStock ?? this.currentStock,
+      totalStock: totalStock ?? this.totalStock,
+    );
+  }
 
   factory MedicationReminder.fromMap(Map<String, dynamic> map) {
     final timeString = map['time']?.toString() ?? '00:00:00';

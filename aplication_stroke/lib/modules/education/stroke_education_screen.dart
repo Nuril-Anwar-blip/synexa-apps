@@ -323,6 +323,9 @@
 // ====================================================================
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/theme_provider.dart';
+import '../../providers/language_provider.dart';
 import '../../models/education_model.dart';
 import '../../services/remote/education_service.dart';
 
@@ -370,11 +373,22 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    double fs = 1.0;
+    try {
+      fs = Provider.of<ThemeProvider>(context).fontSize;
+    } catch (_) {}
+
+    LanguageProvider? lang;
+    try {
+      lang = Provider.of<LanguageProvider>(context);
+    } catch (_) {}
+
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF0F1923)
           : const Color(0xFFF4F7FB),
-      body: _isLoading ? _loading() : _buildBody(isDark),
+      body: _isLoading ? _loading() : _buildBody(isDark, fs, lang),
     );
   }
 
@@ -382,14 +396,14 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
     body: Center(child: CircularProgressIndicator(color: Colors.red)),
   );
 
-  Widget _buildBody(bool isDark) {
+  Widget _buildBody(bool isDark, double fs, LanguageProvider? lang) {
     return NestedScrollView(
       headerSliverBuilder: (_, __) => [
         SliverAppBar(
-          expandedHeight: 200,
+          expandedHeight: 380,
           pinned: true,
           backgroundColor: isDark ? const Color(0xFF0F1923) : Colors.white,
-          flexibleSpace: FlexibleSpaceBar(background: _heroHeader()),
+          flexibleSpace: FlexibleSpaceBar(background: _heroHeader(fs, lang)),
           bottom: TabBar(
             controller: _tabController,
             isScrollable: true,
@@ -397,15 +411,47 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
             unselectedLabelColor: Colors.grey,
             indicatorColor: Colors.red.shade600,
             indicatorWeight: 3,
-            labelStyle: const TextStyle(
+            labelStyle: TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 13,
+              fontSize: 13 * fs,
             ),
-            tabs: const [
-              Tab(text: '🧠 Dasar Stroke'),
-              Tab(text: '⚠️ Gejala & Tanda'),
-              Tab(text: '🛡️ Pencegahan'),
-              Tab(text: '🔄 Pemulihan'),
+            tabs: [
+              Tab(
+                text:
+                    lang?.translate({
+                      'id': '🧠 Dasar Stroke',
+                      'en': '🧠 Stroke Basics',
+                      'ms': '🧠 Asas Strok',
+                    }) ??
+                    '🧠 Dasar Stroke',
+              ),
+              Tab(
+                text:
+                    lang?.translate({
+                      'id': '⚠️ Gejala & Tanda',
+                      'en': '⚠️ Symptoms',
+                      'ms': '⚠️ Simptom & Tanda',
+                    }) ??
+                    '⚠️ Gejala & Tanda',
+              ),
+              Tab(
+                text:
+                    lang?.translate({
+                      'id': '🛡️ Pencegahan',
+                      'en': '🛡️ Prevention',
+                      'ms': '🛡️ Pencegahan',
+                    }) ??
+                    '🛡️ Pencegahan',
+              ),
+              Tab(
+                text:
+                    lang?.translate({
+                      'id': '🔄 Pemulihan',
+                      'en': '🔄 Recovery',
+                      'ms': '🔄 Pemulihan',
+                    }) ??
+                    '🔄 Pemulihan',
+              ),
             ],
           ),
         ),
@@ -422,7 +468,7 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
     );
   }
 
-  Widget _heroHeader() {
+  Widget _heroHeader(double fs, LanguageProvider? lang) {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -434,7 +480,7 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 50, 20, 60),
+          padding: const EdgeInsets.fromLTRB(20, 50, 20, 80),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -453,21 +499,34 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
                     ),
                   ),
                   const SizedBox(width: 14),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Edukasi Stroke',
+                          lang?.translate({
+                                'id': 'Edukasi Stroke',
+                                'en': 'Stroke Education',
+                                'ms': 'Edukasi Strok',
+                              }) ??
+                              'Edukasi Stroke',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 22,
+                            fontSize: 22 * fs,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                         Text(
-                          'Kenali, Cegah, dan Pulih dari Stroke',
-                          style: TextStyle(color: Colors.white70, fontSize: 13),
+                          lang?.translate({
+                                'id': 'Kenali, Cegah, dan Pulih dari Stroke',
+                                'en': 'Recognize, Prevent, and Recover',
+                                'ms': 'Kenali, Cegah, dan Pulih dari Strok',
+                              }) ??
+                              'Kenali, Cegah, dan Pulih dari Stroke',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13 * fs,
+                          ),
                         ),
                       ],
                     ),
@@ -477,11 +536,29 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
               const SizedBox(height: 16),
               Row(
                 children: [
-                  _statPill('87%', 'Bisa\nDicegah'),
+                  _statPill(
+                    '87%',
+                    lang?.translate({
+                          'id': 'Bisa\nDicegah',
+                          'en': 'Can be\nPrevented',
+                          'ms': 'Boleh\nDicegah',
+                        }) ??
+                        'Bisa\nDicegah',
+                    fs,
+                  ),
                   const SizedBox(width: 8),
-                  _statPill('4 Jam', 'Golden\nPeriod'),
+                  _statPill('4 Jam', 'Golden\nPeriod', fs),
                   const SizedBox(width: 8),
-                  _statPill('Ke-2', 'Penyebab\nKematian'),
+                  _statPill(
+                    'Ke-2',
+                    lang?.translate({
+                          'id': 'Penyebab\nKematian',
+                          'en': 'Cause of\nDeath',
+                          'ms': 'Punca\nKematian',
+                        }) ??
+                        'Penyebab\nKematian',
+                    fs,
+                  ),
                 ],
               ),
             ],
@@ -491,9 +568,9 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
     );
   }
 
-  Widget _statPill(String value, String label) => Expanded(
+  Widget _statPill(String value, String label, double fs) => Expanded(
     child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.18),
         borderRadius: BorderRadius.circular(14),
@@ -501,22 +578,28 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
       ),
       child: Column(
         children: [
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18 * fs,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
-              fontSize: 10,
-              height: 1.3,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 10 * fs,
+                height: 1.3,
+              ),
             ),
           ),
         ],

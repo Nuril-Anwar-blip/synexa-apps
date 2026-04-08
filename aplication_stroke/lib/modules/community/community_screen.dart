@@ -1046,7 +1046,7 @@ class _CommunityScreenState extends State<CommunityScreen>
         )),
       ]),
       floatingActionButton: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 74),
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16),
         child: _ComposeFAB(isDark: isDark, fs: fs, t: t, onTap: _navigateToCreatePost),
       ),
     );

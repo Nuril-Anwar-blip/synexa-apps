@@ -20,14 +20,7 @@ class AppBarWithActions extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       title: Text(title),
       elevation: 0,
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.tune_rounded),
-          tooltip: 'Quick Settings',
-          onPressed: () => QuickSettingsSheet.show(context),
-        ),
-        if (actions != null) ...actions!,
-      ],
+      actions: actions,
     );
   }
 
