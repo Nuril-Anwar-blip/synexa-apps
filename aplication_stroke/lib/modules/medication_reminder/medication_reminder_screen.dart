@@ -1830,6 +1830,9 @@ class _MedicationReminderScreenV2State extends State<MedicationReminderScreenV2>
   void initState() {
     super.initState();
     _meds = globalSampleMeds;
+    for (final med in _meds) {
+      if (med.isActive) _syncAlarmSchedule(med);
+    }
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -1879,19 +1882,19 @@ class _MedicationReminderScreenV2State extends State<MedicationReminderScreenV2>
       med.isActive = !med.isActive;
       if (!med.isActive) med.taken = false;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          med.isActive
-              ? '🔔 Pengingat ${med.name} diaktifkan'
-              : '🔕 Pengingat ${med.name} dinonaktifkan',
-        ),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    _syncAlarmSchedule(med);
+  }
+
+  void _syncAlarmSchedule(MedicationV2 med) {
+    if (med.isActive && med.alarmSound != 'silent') {
+      NotificationService().scheduleMedicationNotification(
+        med.id,
+        med.name,
+        med.time,
+      );
+    } else {
+      NotificationService().cancelMedicationNotifications(med.id);
+    }
   }
 
   void _deleteMed(MedicationV2 med) {
@@ -2030,8 +2033,11 @@ class _MedicationReminderScreenV2State extends State<MedicationReminderScreenV2>
     }
   }
 
-  // Simulate alarm popup
   void _simulateAlarm(MedicationV2 med) {
+    if (med.alarmSound != 'silent') {
+      HapticFeedback.heavyImpact();
+      NotificationService().playInAppAlarm(medicationName: med.name);
+    }
     setState(() {
       _alarmVisible = true;
       _alarmMed = med;
@@ -2039,6 +2045,7 @@ class _MedicationReminderScreenV2State extends State<MedicationReminderScreenV2>
   }
 
   void _dismissAlarm() {
+    _alarmTimer?.cancel();
     setState(() {
       _alarmVisible = false;
       _alarmMed = null;

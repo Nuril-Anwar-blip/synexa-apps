@@ -560,6 +560,7 @@ import '../../auth/login_screen.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/language_provider.dart';
 import 'package:aplication_stroke/modules/consultation/consultation_screen.dart';
+import '../../services/remote/staff_presence_service.dart';
 
 // ── Mock data ──────────────────────────────────────────────────────────────
 class _MockConversation {
@@ -647,12 +648,14 @@ class _ApotekerDashboardScreenState extends State<ApotekerDashboardScreen>
     _listFade = CurvedAnimation(parent: _listAnim, curve: Curves.easeOut);
     _searchCtrl.addListener(() => setState(() {}));
     _listAnim.forward();
+    StaffPresenceService.instance.startHeartbeat();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
     _listAnim.dispose();
+    StaffPresenceService.instance.stopHeartbeat();
     super.dispose();
   }
 

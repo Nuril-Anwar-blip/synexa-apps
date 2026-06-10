@@ -78,28 +78,109 @@ class UserModel {
       return [];
     }
 
+    String _mapRoleFromDb(String? dbRole) {
+      switch (dbRole) {
+        case 'patient':
+          return 'pasien';
+        case 'pharmacist':
+          return 'apoteker';
+        case 'admin':
+          return 'admin';
+        default:
+          return dbRole ?? 'pasien';
+      }
+    }
+
     return UserModel(
       id: map['id'] as String?,
       email: map['email'] as String? ?? '',
-      fullName: map['full_name'] as String? ?? '',
-      birthDate: map['birth_date'] != null ? DateTime.tryParse(map['birth_date']) : null,
-      height: (map['height'] as num?)?.toDouble() ?? 0.0,
-      weight: (map['weight'] as num?)?.toDouble() ?? 0.0,
+      fullName:
+          map['full_name'] as String? ?? map['name'] as String? ?? '',
+      birthDate: map['birth_date'] != null
+          ? DateTime.tryParse(map['birth_date'].toString())
+          : map['date_of_birth'] != null
+          ? DateTime.tryParse(map['date_of_birth'].toString())
+          : null,
+      height:
+          (map['height'] as num?)?.toDouble() ??
+          (map['height_cm'] as num?)?.toDouble() ??
+          0.0,
+      weight:
+          (map['weight'] as num?)?.toDouble() ??
+          (map['weight_kg'] as num?)?.toDouble() ??
+          0.0,
       gender: map['gender'] as String? ?? 'male',
-      phoneNumber: map['phone_number'] as String? ?? '',
-      role: map['role'] as String? ?? 'pasien',
+      phoneNumber:
+          map['phone_number'] as String? ?? map['phone'] as String? ?? '',
+      role: _mapRoleFromDb(map['role'] as String?),
 
       // Menggunakan fungsi bantuan yang aman
       medicalHistory: _parseListFromMap(map['medical_history']),
       drugAllergy: _parseListFromMap(map['drug_allergy']),
 
-      emergencyContacts:
-          map['emergency_contact'] != null && map['emergency_contact'] is List
-          ? (map['emergency_contact'] as List).map((e) => EmergencyContactModel.fromMap(e as Map<String, dynamic>)).toList()
-          : [],
+      emergencyContacts: () {
+        if (map['emergency_contact'] is List) {
+          return (map['emergency_contact'] as List)
+              .map(
+                (e) => EmergencyContactModel.fromMap(
+                  e as Map<String, dynamic>,
+                ),
+              )
+              .toList();
+        }
+        final ecName = map['emergency_contact_name']?.toString();
+        final ecPhone = map['emergency_contact_phone']?.toString();
+        if (ecName != null && ecName.isNotEmpty) {
+          return [
+            EmergencyContactModel(
+              name: ecName,
+              phoneNumber: ecPhone ?? '',
+              relationship: '',
+            ),
+          ];
+        }
+        return <EmergencyContactModel>[];
+      }(),
 
-      photoUrl: map['photo_url'] as String?,
+      photoUrl:
+          map['photo_url'] as String? ?? map['profile_picture'] as String?,
     );
+  }
+
+  static String _mapRoleToDb(String role) {
+    switch (role) {
+      case 'pasien':
+        return 'patient';
+      case 'apoteker':
+        return 'pharmacist';
+      default:
+        return role;
+    }
+  }
+
+  /// Map untuk insert ke `public.users` (schema smart_stroke).
+  Map<String, dynamic> toSupabaseInsertMap({required String authId}) {
+    final emergency = emergencyContacts.isNotEmpty
+        ? emergencyContacts.first
+        : null;
+
+    return {
+      'auth_id': authId,
+      'email': email,
+      'name': fullName,
+      'phone': phoneNumber,
+      if (birthDate != null)
+        'date_of_birth': birthDate!.toIso8601String().split('T').first,
+      'gender': gender,
+      if (height > 0) 'height_cm': height,
+      if (weight > 0) 'weight_kg': weight,
+      'role': _mapRoleToDb(role),
+      if (photoUrl != null) 'profile_picture': photoUrl,
+      if (emergency != null) ...{
+        'emergency_contact_name': emergency.name,
+        'emergency_contact_phone': emergency.phoneNumber,
+      },
+    };
   }
 
   /// Mengubah instance menjadi Map untuk disimpan ke Supabase.

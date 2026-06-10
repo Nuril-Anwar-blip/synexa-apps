@@ -25,6 +25,8 @@
 // import 'create_post_screen.dart';
 // import 'post_detail_screen.dart';
 // import 'widgets/post_card.dart';
+import '../../utils/user_profile_helper.dart';
+import '../../utils/app_route_transitions.dart';
 // import '../../../widgets/quick_settings_sheet.dart';
 
 // /// Halaman Komunitas
@@ -827,6 +829,7 @@ import '../../../widgets/quick_settings_sheet.dart';
 import 'create_post_screen.dart';
 import 'post_detail_screen.dart';
 import 'widgets/post_card.dart';
+import '../../utils/user_profile_helper.dart';
 
 class CommunityScreen extends StatefulWidget {
   const CommunityScreen({super.key});
@@ -868,10 +871,9 @@ class _CommunityScreenState extends State<CommunityScreen>
   Future<void> _loadInitialFeed() async => await _refreshPosts(showFullLoader: true);
 
   Future<List<Post>> _getPosts() async {
-    final user = _supabase.auth.currentUser;
-    final userId = user?.id;
+    final profileId = await UserProfileHelper.patientProfileId();
     final response = await _supabase.from('posts').select('''
-      *, users!inner(full_name, photo_url), likes(count), comments(count)
+      *, users!inner(name, profile_picture), likes(count), comments(count)
     ''').order('created_at', ascending: false);
 
     final List<Post> posts = [];
@@ -879,8 +881,8 @@ class _CommunityScreenState extends State<CommunityScreen>
       final postData = Map<String, dynamic>.from(data);
       final postId = postData['id'];
       bool hasLiked = false;
-      if (userId != null) {
-        final likeCheck = await _supabase.from('likes').select('id').eq('post_id', postId).eq('user_id', userId).maybeSingle();
+      if (profileId != null) {
+        final likeCheck = await _supabase.from('likes').select('id').eq('post_id', postId).eq('user_id', profileId).maybeSingle();
         hasLiked = likeCheck != null;
       }
       postData['media_url'] = postData['image_url'];
@@ -961,12 +963,18 @@ class _CommunityScreenState extends State<CommunityScreen>
   }
 
   Future<void> _navigateToCreatePost() async {
-    final created = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const CreatePostScreen()));
+    final created = await Navigator.push<bool>(
+      context,
+      AppRouteTransitions.slideUp(const CreatePostScreen()),
+    );
     if (created == true) await _refreshPosts();
   }
 
   Future<void> _openDetail(Post post) async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => PostDetailScreen(post: post)));
+    await Navigator.push(
+      context,
+      AppRouteTransitions.fadeSlide(PostDetailScreen(post: post)),
+    );
     if (mounted) _refreshPosts();
   }
 

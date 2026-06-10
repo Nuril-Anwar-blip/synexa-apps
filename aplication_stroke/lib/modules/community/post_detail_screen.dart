@@ -22,8 +22,12 @@ class Comment {
     return Comment(
       id: map['id'].toString(),
       content: map['content'] ?? '',
-      userName: map['users']?['full_name'] ?? 'Pengguna',
-      userAvatarUrl: map['users']?['photo_url'] ?? '',
+      userName: map['users']?['name'] ??
+          map['users']?['full_name'] ??
+          'Pengguna',
+      userAvatarUrl: map['users']?['profile_picture'] ??
+          map['users']?['photo_url'] ??
+          '',
     );
   }
 }
@@ -60,7 +64,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           for (var map in maps) {
             final userResponse = await _supabase
                 .from('users')
-                .select('full_name, photo_url')
+                .select('name, profile_picture')
                 .eq('id', map['user_id'])
                 .maybeSingle();
             

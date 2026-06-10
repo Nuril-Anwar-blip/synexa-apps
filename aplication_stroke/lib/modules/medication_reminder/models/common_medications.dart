@@ -1,169 +1,213 @@
+/// Daftar obat stroke oral berdasarkan PNPK 2019 (Kemenkes).
 class CommonMedication {
   final String name;
   final String? defaultDose;
   final String category;
+  final String? dosageForm;
+  final String? indication;
 
   const CommonMedication({
     required this.name,
     this.defaultDose,
     required this.category,
+    this.dosageForm,
+    this.indication,
   });
 }
 
 class CommonMedications {
   static const List<CommonMedication> list = [
-    // Obat Stroke - Antiplatelet
+    // 1. Antiplatelet — stroke iskemik non-kardioemboli
     CommonMedication(
       name: 'Aspirin',
-      defaultDose: '100 mg',
+      defaultDose: '80–100 mg',
       category: 'Antiplatelet',
+      dosageForm: 'Tablet',
+      indication: 'Pencegahan sekunder stroke',
     ),
     CommonMedication(
       name: 'Clopidogrel',
       defaultDose: '75 mg',
       category: 'Antiplatelet',
-    ),
-    CommonMedication(
-      name: 'Ticlopidine',
-      defaultDose: '250 mg',
-      category: 'Antiplatelet',
+      dosageForm: 'Tablet',
+      indication: 'Alternatif bila alergi aspirin',
     ),
     CommonMedication(
       name: 'Dipiridamol',
-      defaultDose: '5 mg',
+      defaultDose: '200 mg',
       category: 'Antiplatelet',
+      dosageForm: 'Tablet',
+      indication: 'Kombinasi dengan aspirin',
     ),
     CommonMedication(
       name: 'Aspirin + Dipiridamol',
-      defaultDose: '100 mg + 5 mg',
+      defaultDose: '25/200 mg',
       category: 'Antiplatelet',
+      dosageForm: 'Tablet kombinasi',
+      indication: 'Pencegahan sekunder stroke',
     ),
 
-    // Obat Stroke - Statin
-    CommonMedication(
-      name: 'Atorvastatin',
-      defaultDose: '20 mg',
-      category: 'Statin',
-    ),
-    CommonMedication(
-      name: 'Simvastatin',
-      defaultDose: '20 mg',
-      category: 'Statin',
-    ),
-    CommonMedication(
-      name: 'Rosuvastatin',
-      defaultDose: '10 mg',
-      category: 'Statin',
-    ),
-    // Obat Stroke - Antihipertensi
-    CommonMedication(
-      name: 'Losartan',
-      defaultDose: '50 mg',
-      category: 'Antihipertensi',
-    ),
-    CommonMedication(
-      name: 'Amlodipine',
-      defaultDose: '5 mg',
-      category: 'Antihipertensi',
-    ),
-    CommonMedication(
-      name: 'Captopril',
-      defaultDose: '25 mg',
-      category: 'Antihipertensi',
-    ),
-    CommonMedication(
-      name: 'Enalapril',
-      defaultDose: '10 mg',
-      category: 'Antihipertensi',
-    ),
-    CommonMedication(
-      name: 'Lisinopril',
-      defaultDose: '10 mg',
-      category: 'Antihipertensi',
-    ),
-    CommonMedication(
-      name: 'Valsartan',
-      defaultDose: '80 mg',
-      category: 'Antihipertensi',
-    ),
-    // Obat Stroke - Antikoagulan
+    // 2. Antikoagulan — stroke kardioemboli (mis. fibrilasi atrium)
     CommonMedication(
       name: 'Warfarin',
-      defaultDose: '2.5 mg',
+      defaultDose: '2–5 mg',
       category: 'Antikoagulan',
+      dosageForm: 'Tablet',
+      indication: 'Vitamin K antagonist',
     ),
     CommonMedication(
-      name: 'Rivaroxaban',
-      defaultDose: '20 mg',
+      name: 'Dabigatran',
+      defaultDose: '110–150 mg',
       category: 'Antikoagulan',
+      dosageForm: 'Kapsul',
+      indication: 'NOAC',
     ),
     CommonMedication(
       name: 'Apixaban',
       defaultDose: '5 mg',
       category: 'Antikoagulan',
+      dosageForm: 'Tablet',
+      indication: 'NOAC',
     ),
     CommonMedication(
-      name: 'Dabigatran',
-      defaultDose: '10 mg',
+      name: 'Rivaroxaban',
+      defaultDose: '15–20 mg',
       category: 'Antikoagulan',
+      dosageForm: 'Tablet',
+      indication: 'NOAC',
     ),
 
-    // Obat Stroke - Diuretik
+    // 3. Antihipertensi
     CommonMedication(
-      name: 'Furosemide',
-      defaultDose: '40 mg',
-      category: 'Diuretik',
-    ),
-    CommonMedication(
-      name: 'Hydrochlorothiazide',
+      name: 'Captopril',
       defaultDose: '25 mg',
-      category: 'Diuretik',
-    ),
-    // Obat Stroke - Antidiabetes
-    CommonMedication(
-      name: 'Metformin',
-      defaultDose: '500 mg',
-      category: 'Antidiabetes',
+      category: 'Antihipertensi',
+      dosageForm: 'Tablet',
+      indication: 'ACE inhibitor',
     ),
     CommonMedication(
-      name: 'Glibenclamide',
+      name: 'Lisinopril',
+      defaultDose: '10 mg',
+      category: 'Antihipertensi',
+      dosageForm: 'Tablet',
+      indication: 'ACE inhibitor',
+    ),
+    CommonMedication(
+      name: 'Amlodipin',
       defaultDose: '5 mg',
-      category: 'Antidiabetes',
-    ),
-    // Obat Stroke - Neuroprotektor
-    CommonMedication(
-      name: 'Citicoline',
-      defaultDose: '500 mg',
-      category: 'Neuroprotektor',
+      category: 'Antihipertensi',
+      dosageForm: 'Tablet',
+      indication: 'Calcium channel blocker',
     ),
     CommonMedication(
-      name: 'Piracetam',
-      defaultDose: '800 mg',
-      category: 'Neuroprotektor',
+      name: 'Diltiazem',
+      defaultDose: '60 mg',
+      category: 'Antihipertensi',
+      dosageForm: 'Tablet',
+      indication: 'Calcium channel blocker',
     ),
-    // Obat Stroke - Lainnya
+
+    // 4. Statin — pencegahan stroke primer/sekunder pada dislipidemia
     CommonMedication(
-      name: 'Omeprazole',
+      name: 'Simvastatin',
       defaultDose: '20 mg',
-      category: 'Antasida',
+      category: 'Statin',
+      dosageForm: 'Tablet',
+      indication: 'Penurun lipid',
     ),
     CommonMedication(
-      name: 'Paracetamol',
+      name: 'Atorvastatin',
+      defaultDose: '20 mg',
+      category: 'Statin',
+      dosageForm: 'Tablet',
+      indication: 'Penurun lipid',
+    ),
+
+    // 5. Antikonvulsan — kejang pasca stroke
+    CommonMedication(
+      name: 'Karbamazepin',
+      defaultDose: '200 mg',
+      category: 'Antiepileptik',
+      dosageForm: 'Tablet',
+      indication: 'Kejang pasca stroke',
+    ),
+    CommonMedication(
+      name: 'Fenitoin',
+      defaultDose: '100 mg',
+      category: 'Antiepileptik',
+      dosageForm: 'Tablet',
+      indication: 'Kejang pasca stroke',
+    ),
+
+    // 6. Nyeri neuropatik pasca stroke
+    CommonMedication(
+      name: 'Amitriptilin',
+      defaultDose: '25 mg',
+      category: 'Nyeri Neuropatik',
+      dosageForm: 'Tablet',
+      indication: 'Antidepresan trisiklik',
+    ),
+    CommonMedication(
+      name: 'Gabapentin',
+      defaultDose: '300 mg',
+      category: 'Nyeri Neuropatik',
+      dosageForm: 'Tablet/Kapsul',
+      indication: 'Antikonvulsan',
+    ),
+    CommonMedication(
+      name: 'Lamotrigin',
+      defaultDose: '25 mg',
+      category: 'Nyeri Neuropatik',
+      dosageForm: 'Tablet',
+      indication: 'Antikonvulsan',
+    ),
+
+    // 7. Laksatif — konstipasi pada pasien stroke
+    CommonMedication(
+      name: 'Senna',
+      defaultDose: '7.5 mg',
+      category: 'Laksatif',
+      dosageForm: 'Tablet',
+      indication: 'Laksatif stimulan',
+    ),
+    CommonMedication(
+      name: 'Laktulosa',
+      defaultDose: '15 mL',
+      category: 'Laksatif',
+      dosageForm: 'Sirup',
+      indication: 'Laksatif osmotik',
+    ),
+    CommonMedication(
+      name: 'Polyethylene glycol',
+      defaultDose: '17 g',
+      category: 'Laksatif',
+      dosageForm: 'Sachet',
+      indication: 'Laksatif osmotik',
+    ),
+
+    // Catatan: Sickle Cell Disease
+    CommonMedication(
+      name: 'Hydroxyurea',
       defaultDose: '500 mg',
-      category: 'Analgesik',
-    ),
-    CommonMedication(
-      name: 'Ibuprofen',
-      defaultDose: '400 mg',
-      category: 'Analgesik',
+      category: 'Pencegahan Risiko',
+      dosageForm: 'Kapsul',
+      indication: 'Mengurangi risiko stroke (sickle cell)',
     ),
   ];
 
   static List<String> get names => list.map((m) => m.name).toList();
 
+  static List<String> get categories =>
+      list.map((m) => m.category).toSet().toList()..sort();
+
+  static List<CommonMedication> byCategory(String category) =>
+      list.where((m) => m.category == category).toList();
+
   static CommonMedication? findByName(String name) {
     try {
-      return list.firstWhere((m) => m.name.toLowerCase() == name.toLowerCase());
+      return list.firstWhere(
+        (m) => m.name.toLowerCase() == name.toLowerCase(),
+      );
     } catch (_) {
       return null;
     }

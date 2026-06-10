@@ -16,8 +16,9 @@ class RegisterPatientScreen extends StatelessWidget {
     return AuthLayout(
       title: 'Daftar Pasien',
       desc: 'Isi data diri lengkap untuk memulai perjalanan pemulihan Anda.',
-      formField: const RegisterForm(role: RegisterRole.patient),
+      formField: const RegisterForm(),
       marginTop: 60,
+      showBackButton: true,
     );
   }
 }

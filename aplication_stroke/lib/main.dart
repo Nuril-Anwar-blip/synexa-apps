@@ -14,6 +14,7 @@
 /// Author: Tim Developer Synexa
 /// ====================================================================
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -66,11 +67,27 @@ class MyApp extends StatelessWidget {
             isDark: false,
             fontFamily: themeProvider.fontFamily,
             fontSizeScale: themeProvider.fontSize,
+          ).copyWith(
+            pageTransitionsTheme: PageTransitionsTheme(
+              builders: {
+                TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+              },
+            ),
           ),
           darkTheme: AppTheme.getTheme(
             isDark: true,
             fontFamily: themeProvider.fontFamily,
             fontSizeScale: themeProvider.fontSize,
+          ).copyWith(
+            pageTransitionsTheme: PageTransitionsTheme(
+              builders: {
+                TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+              },
+            ),
           ),
           themeMode: themeProvider.themeMode,
           locale: languageProvider.locale,

@@ -5,6 +5,7 @@ import '../../../../models/emergency_contact_model.dart';
 import '../../../../models/user_model.dart';
 import '../../../../services/remote/auth_service.dart';
 import '../../../../utils/input_validator.dart';
+import '../login_screen.dart';
 import 'splash_screen.dart';
 import 'auth_redirect_text.dart';
 import 'gender_radio_form.dart';
@@ -12,11 +13,8 @@ import 'multi_select_form.dart';
 import 'password_form_field_with_label.dart';
 import 'text_form_field_with_label.dart';
 
-enum RegisterRole { patient, pharmacist }
-
 class RegisterForm extends StatefulWidget {
-  final RegisterRole role;
-  const RegisterForm({super.key, this.role = RegisterRole.patient});
+  const RegisterForm({super.key});
 
   @override
   State<RegisterForm> createState() => _RegisterFormState();
@@ -26,6 +24,7 @@ class _RegisterFormState extends State<RegisterForm> {
   // ── State ───────────────────────────────────────────────────────────────
   int _currentStep = 0;
   bool _isLoading = false;
+  String? _errorMessage;
 
   // FormKey — TIDAK pernah direset agar state form tetap terjaga
   final _formKeyStep1 = GlobalKey<FormState>();
@@ -42,16 +41,12 @@ class _RegisterFormState extends State<RegisterForm> {
   final _emergencyContactPhoneNumberController = TextEditingController();
   final _heightController = TextEditingController();
   final _weightController = TextEditingController();
-  final _pharmacistCodeController = TextEditingController();
-
   DateTime? _birthDate;
   final _authService = AuthService();
 
   List<String> _selectedMedicalHistory = [];
   List<String> _selectedDrugAllergy = [];
   String _gender = "male";
-
-  bool get _isPharmacist => widget.role == RegisterRole.pharmacist;
 
   // ── Konstanta ────────────────────────────────────────────────────────────
   static const _stepColors = [
@@ -78,7 +73,6 @@ class _RegisterFormState extends State<RegisterForm> {
     _emergencyContactPhoneNumberController.dispose();
     _heightController.dispose();
     _weightController.dispose();
-    _pharmacistCodeController.dispose();
     super.dispose();
   }
 
@@ -88,7 +82,6 @@ class _RegisterFormState extends State<RegisterForm> {
       case 0:
         return _formKeyStep1.currentState?.validate() ?? false;
       case 1:
-        if (_isPharmacist) return true;
         if (!(_formKeyStep2.currentState?.validate() ?? false)) return false;
         if (_birthDate == null) {
           _showSnackBar("Tanggal lahir wajib diisi.", isError: true);
@@ -96,7 +89,6 @@ class _RegisterFormState extends State<RegisterForm> {
         }
         return true;
       case 2:
-        if (_isPharmacist) return true;
         return _formKeyStep3.currentState?.validate() ?? false;
       default:
         return false;
@@ -109,7 +101,10 @@ class _RegisterFormState extends State<RegisterForm> {
     if (!_validateCurrentStep()) return;
     FocusScope.of(context).unfocus();
     if (_currentStep < 2) {
-      setState(() => _currentStep++);
+      setState(() {
+        _errorMessage = null;
+        _currentStep++;
+      });
     } else {
       await _handleRegister();
     }
@@ -118,66 +113,86 @@ class _RegisterFormState extends State<RegisterForm> {
   void _prevStep() {
     if (_isLoading || _currentStep == 0) return;
     FocusScope.of(context).unfocus();
-    setState(() => _currentStep--);
+    setState(() {
+      _errorMessage = null;
+      _currentStep--;
+    });
   }
 
   void _goToStep(int index) {
     if (_isLoading || index >= _currentStep) return;
     FocusScope.of(context).unfocus();
-    setState(() => _currentStep = index);
+    setState(() {
+      _errorMessage = null;
+      _currentStep = index;
+    });
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────
+  String _formatError(Object e) {
+    final raw = e.toString().replaceFirst('Exception: ', '').trim();
+    if (raw.isEmpty) return 'Terjadi kesalahan. Silakan coba lagi.';
+    return raw;
+  }
+
   Future<void> _handleRegister() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final user = UserModel(
-        email: _emailController.text.trim(),
+        email: _emailController.text.trim().toLowerCase(),
         phoneNumber: _phoneNumberController.text.trim(),
         fullName: _fullNameController.text.trim(),
-        birthDate: _isPharmacist ? null : _birthDate,
-        height: _isPharmacist
-            ? 0
-            : (double.tryParse(_heightController.text.trim()) ?? 0.0),
-        weight: _isPharmacist
-            ? 0
-            : (double.tryParse(_weightController.text.trim()) ?? 0.0),
-        medicalHistory: _isPharmacist ? const [] : _selectedMedicalHistory,
+        birthDate: _birthDate,
+        height: double.tryParse(_heightController.text.trim()) ?? 0.0,
+        weight: double.tryParse(_weightController.text.trim()) ?? 0.0,
+        medicalHistory: _selectedMedicalHistory,
         gender: _gender,
-        drugAllergy: _isPharmacist ? const [] : _selectedDrugAllergy,
-        emergencyContacts: _isPharmacist
-            ? []
-            : [
-                EmergencyContactModel(
-                  name: _emergencyContactNameController.text.trim(),
-                  relationship: _emergencyContactRelationshipController.text
-                      .trim(),
-                  phoneNumber: _emergencyContactPhoneNumberController.text
-                      .trim(),
-                ),
-              ],
+        drugAllergy: _selectedDrugAllergy,
+        emergencyContacts: [
+          EmergencyContactModel(
+            name: _emergencyContactNameController.text.trim(),
+            relationship:
+                _emergencyContactRelationshipController.text.trim(),
+            phoneNumber:
+                _emergencyContactPhoneNumberController.text.trim(),
+          ),
+        ],
       );
 
       final response = await _authService.register(
         user: user,
         password: _passwordController.text.trim(),
-        pharmacistCode: _isPharmacist
-            ? _pharmacistCodeController.text.trim()
-            : null,
       );
 
       if (!mounted) return;
 
-      if (response.user != null) {
-        Navigator.pushReplacement(
+      if (response.session != null) {
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const SplashScreen()),
+          (route) => false,
+        );
+      } else if (response.user != null) {
+        _showSnackBar(
+          "Registrasi berhasil! Cek email Anda untuk verifikasi, lalu masuk.",
+        );
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
         );
       } else {
-        _showSnackBar("Registrasi gagal. Silakan coba lagi.", isError: true);
+        setState(
+          () => _errorMessage = 'Registrasi gagal. Silakan coba lagi.',
+        );
       }
     } catch (e) {
-      if (mounted) _showSnackBar("Error: $e", isError: true);
+      if (mounted) {
+        setState(() => _errorMessage = _formatError(e));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -221,14 +236,11 @@ class _RegisterFormState extends State<RegisterForm> {
         phoneController: _phoneNumberController,
         emailController: _emailController,
         passwordController: _passwordController,
-        pharmacistCodeController: _pharmacistCodeController,
-        isPharmacist: _isPharmacist,
         gender: _gender,
         onGenderChanged: (v) => setState(() => _gender = v),
       ),
       _Step2Kesehatan(
         formKey: _formKeyStep2,
-        isPharmacist: _isPharmacist,
         birthDate: _birthDate,
         onBirthDateChanged: (d) => setState(() => _birthDate = d),
         heightController: _heightController,
@@ -241,7 +253,6 @@ class _RegisterFormState extends State<RegisterForm> {
       ),
       _Step3KontakDarurat(
         formKey: _formKeyStep3,
-        isPharmacist: _isPharmacist,
         nameController: _emergencyContactNameController,
         relationshipController: _emergencyContactRelationshipController,
         phoneController: _emergencyContactPhoneNumberController,
@@ -263,30 +274,18 @@ class _RegisterFormState extends State<RegisterForm> {
 
         const SizedBox(height: 20),
 
-        // ── Konten Step — AnimatedSwitcher (TANPA PageView) ─────────────
-        // Kunci: tinggi mengikuti konten secara alami, tidak perlu scroll
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 320),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          transitionBuilder: (child, anim) {
-            // NOTE: `anim` already has the curve applied by AnimatedSwitcher.
-            // Do NOT wrap it in another CurvedAnimation — that causes assertion
-            // errors when values go outside [0.0, 1.0].
-            final slide = Tween<Offset>(
-              begin: const Offset(0.08, 0),
-              end: Offset.zero,
-            ).animate(anim);
-            return FadeTransition(
-              opacity: anim,
-              child: SlideTransition(position: slide, child: child),
-            );
-          },
-          child: KeyedSubtree(
-            key: ValueKey(_currentStep),
-            child: steps[_currentStep],
-          ),
+        // IndexedStack: tidak ada animasi fade yang bikin layout "loncat"
+        // dan state form tiap step tetap terjaga saat pindah step.
+        IndexedStack(
+          index: _currentStep,
+          sizing: StackFit.loose,
+          children: steps,
         ),
+
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 14),
+          _ErrorBanner(message: _errorMessage!),
+        ],
 
         const SizedBox(height: 20),
 
@@ -522,7 +521,7 @@ class _StepIndicator extends StatelessWidget {
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 200),
                       transitionBuilder: (child, anim) =>
-                          ScaleTransition(scale: anim, child: child),
+                          FadeTransition(opacity: anim, child: child),
                       child: isDone
                           ? const Icon(
                               Icons.check_rounded,
@@ -570,8 +569,6 @@ class _Step1DataDiri extends StatelessWidget {
   final TextEditingController phoneController;
   final TextEditingController emailController;
   final TextEditingController passwordController;
-  final TextEditingController pharmacistCodeController;
-  final bool isPharmacist;
   final String gender;
   final ValueChanged<String> onGenderChanged;
 
@@ -581,8 +578,6 @@ class _Step1DataDiri extends StatelessWidget {
     required this.phoneController,
     required this.emailController,
     required this.passwordController,
-    required this.pharmacistCodeController,
-    required this.isPharmacist,
     required this.gender,
     required this.onGenderChanged,
   });
@@ -628,14 +623,6 @@ class _Step1DataDiri extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           GenderRadioForm(selectedGender: gender, onChanged: onGenderChanged),
-          if (isPharmacist) ...[
-            const SizedBox(height: 10),
-            TextFormFieldWithLabel(
-              label: "Kode Registrasi Apoteker",
-              controller: pharmacistCodeController,
-              validator: (v) => InputValidator.empty(v, "Kode Registrasi"),
-            ),
-          ],
         ],
       ),
     );
@@ -648,7 +635,6 @@ class _Step1DataDiri extends StatelessWidget {
 
 class _Step2Kesehatan extends StatelessWidget {
   final GlobalKey<FormState> formKey;
-  final bool isPharmacist;
   final DateTime? birthDate;
   final ValueChanged<DateTime?> onBirthDateChanged;
   final TextEditingController heightController;
@@ -660,7 +646,6 @@ class _Step2Kesehatan extends StatelessWidget {
 
   const _Step2Kesehatan({
     required this.formKey,
-    required this.isPharmacist,
     required this.birthDate,
     required this.onBirthDateChanged,
     required this.heightController,
@@ -673,14 +658,6 @@ class _Step2Kesehatan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isPharmacist) {
-      return _SkippedCard(
-        icon: Icons.favorite_outline_rounded,
-        color: const Color(0xFF059669),
-        message: "Apoteker tidak membutuhkan data kesehatan & fisik.",
-      );
-    }
-
     return Form(
       key: formKey,
       child: Column(
@@ -795,14 +772,12 @@ class _Step2Kesehatan extends StatelessWidget {
 
 class _Step3KontakDarurat extends StatelessWidget {
   final GlobalKey<FormState> formKey;
-  final bool isPharmacist;
   final TextEditingController nameController;
   final TextEditingController relationshipController;
   final TextEditingController phoneController;
 
   const _Step3KontakDarurat({
     required this.formKey,
-    required this.isPharmacist,
     required this.nameController,
     required this.relationshipController,
     required this.phoneController,
@@ -810,14 +785,6 @@ class _Step3KontakDarurat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isPharmacist) {
-      return _SkippedCard(
-        icon: Icons.contact_phone_outlined,
-        color: const Color(0xFFD97706),
-        message: "Apoteker tidak membutuhkan kontak darurat.",
-      );
-    }
-
     return Form(
       key: formKey,
       child: Column(
@@ -905,6 +872,42 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Color(0xFF991B1B),
+                fontSize: 13,
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

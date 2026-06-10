@@ -4,6 +4,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'splash_screen.dart';
+
 /// Bagian bawah form auth
 ///
 /// Menampilkan tombol login/register via Google dan Facebook.
@@ -48,11 +50,20 @@ class _AuthBottomSectionState extends State<AuthBottomSection> {
         throw Exception('Token Google tidak valid');
       }
 
-      await _supabase.auth.signInWithIdToken(
+      final response = await _supabase.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
         accessToken: accessToken,
       );
+
+      if (!mounted) return;
+      if (response.session != null) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const SplashScreen()),
+          (route) => false,
+        );
+      }
     } catch (e) {
       if (mounted) _showError('Gagal login dengan Google. Coba lagi.');
     } finally {
@@ -80,10 +91,19 @@ class _AuthBottomSectionState extends State<AuthBottomSection> {
 
       final token = result.accessToken!.tokenString;
 
-      await _supabase.auth.signInWithIdToken(
+      final response = await _supabase.auth.signInWithIdToken(
         provider: OAuthProvider.facebook,
         idToken: token,
       );
+
+      if (!mounted) return;
+      if (response.session != null) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const SplashScreen()),
+          (route) => false,
+        );
+      }
     } catch (e) {
       if (mounted) _showError('Gagal login dengan Facebook. Coba lagi.');
     } finally {

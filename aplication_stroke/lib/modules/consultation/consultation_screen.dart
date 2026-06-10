@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../providers/language_provider.dart';
+import '../../utils/user_profile_helper.dart';
 
 bool _isImageUrl(String url) {
   final lower = url.toLowerCase();
@@ -78,20 +79,29 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   late final SupabaseClient _supabase;
   late final Stream<List<ChatMessage>> _messagesStream;
   String? _currentUserId;
+  String? _senderRole;
   String? _recipientPhone;
 
   @override
   void initState() {
     super.initState();
     _supabase = Supabase.instance.client;
-    _currentUserId = _supabase.auth.currentUser?.id;
     _messagesStream = _supabase
         .from('messages')
         .stream(primaryKey: ['id'])
-        .eq('room_id', widget.roomId)
+        .eq('chat_room_id', widget.roomId)
         .order('created_at', ascending: true)
         .map((rows) => rows.map((row) => ChatMessage.fromMap(row)).toList());
-    // Ambil nomor telepon penerima untuk fitur panggilan
+    _initProfile();
+  }
+
+  Future<void> _initProfile() async {
+    final profile = await UserProfileHelper.chatProfile();
+    if (!mounted) return;
+    setState(() {
+      _currentUserId = profile?.id;
+      _senderRole = profile?.role ?? 'patient';
+    });
     _loadRecipientPhone();
   }
 
@@ -105,13 +115,16 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
   Future<void> _sendMessage() async {
     final content = _textController.text.trim();
-    if (content.isEmpty || _currentUserId == null) return;
+    if (content.isEmpty || _currentUserId == null || _senderRole == null) {
+      return;
+    }
 
     _isSending.value = true;
     try {
       await _supabase.from('messages').insert({
-        'room_id': widget.roomId,
+        'chat_room_id': widget.roomId,
         'sender_id': _currentUserId,
+        'sender_role': _senderRole,
         'content': content,
       });
       _textController.clear();
@@ -132,13 +145,22 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   // Ambil nomor telepon penerima dari tabel users
   Future<void> _loadRecipientPhone() async {
     try {
-      final row = await _supabase
-          .from('users')
-          .select('phone_number')
+      final pharm = await _supabase
+          .from('pharmacists')
+          .select('phone')
           .eq('id', widget.recipientId)
           .maybeSingle();
-      if (row != null) {
-        setState(() => _recipientPhone = row['phone_number']?.toString());
+      if (pharm != null) {
+        setState(() => _recipientPhone = pharm['phone']?.toString());
+        return;
+      }
+      final patient = await _supabase
+          .from('users')
+          .select('phone')
+          .eq('id', widget.recipientId)
+          .maybeSingle();
+      if (patient != null) {
+        setState(() => _recipientPhone = patient['phone']?.toString());
       }
     } catch (_) {}
   }
@@ -166,21 +188,18 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
       try {
         await _supabase.from('messages').insert({
-          'room_id': widget.roomId,
+          'chat_room_id': widget.roomId,
           'sender_id': _currentUserId,
-          'content': '',
-          'metadata': {
-            'type': 'image',
-            'url': publicUrl,
-            'name': picked.name,
-            'size': await file.length(),
-          },
+          'sender_role': _senderRole,
+          'content': publicUrl,
+          'attachment_url': publicUrl,
+          'attachment_type': 'image',
         });
       } catch (_) {
-        // Fallback bila kolom 'metadata' tidak ada: kirim URL sebagai content
         await _supabase.from('messages').insert({
-          'room_id': widget.roomId,
+          'chat_room_id': widget.roomId,
           'sender_id': _currentUserId,
+          'sender_role': _senderRole,
           'content': publicUrl,
         });
       }
@@ -217,23 +236,19 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
       try {
         await _supabase.from('messages').insert({
-          'room_id': widget.roomId,
+          'chat_room_id': widget.roomId,
           'sender_id': _currentUserId,
+          'sender_role': _senderRole,
           'content': f.name,
-          'metadata': {
-            'type': 'file',
-            'url': publicUrl,
-            'name': f.name,
-            'size': f.size,
-            'ext': ext,
-          },
+          'attachment_url': publicUrl,
+          'attachment_type': 'document',
         });
       } catch (_) {
-        // Fallback bila kolom 'metadata' tidak ada: kirim nama + URL sebagai content
         await _supabase.from('messages').insert({
-          'room_id': widget.roomId,
+          'chat_room_id': widget.roomId,
           'sender_id': _currentUserId,
-          'content': '${f.name} | ${publicUrl}',
+          'sender_role': _senderRole,
+          'content': '${f.name} | $publicUrl',
         });
       }
       _scrollToBottom();

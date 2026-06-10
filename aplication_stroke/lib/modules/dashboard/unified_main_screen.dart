@@ -31,6 +31,7 @@ import 'widgets/enhanced_home_tab.dart';
 import '../consultation/patient_chat_dashboard_screen.dart';
 import '../community/community_screen.dart';
 import '../profile/profile_screen.dart';
+import '../../utils/app_route_transitions.dart';
 
 /// UnifiedMainScreen: wrapper for all main tabs with bottom navbar.
 class UnifiedMainScreen extends StatefulWidget {
@@ -58,11 +59,11 @@ class _UnifiedMainScreenState extends State<UnifiedMainScreen> {
       if (userId == null) return;
       final data = await _supabase
           .from('users')
-          .select('photo_url')
-          .eq('id', userId)
+          .select('profile_picture')
+          .eq('auth_id', userId)
           .maybeSingle();
       if (mounted && data != null) {
-        setState(() => _photoUrl = data['photo_url']?.toString());
+        setState(() => _photoUrl = data['profile_picture']?.toString());
       }
     } catch (_) {}
   }
@@ -75,7 +76,16 @@ class _UnifiedMainScreenState extends State<UnifiedMainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: _buildCurrentTab(),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: AppRouteTransitions.tabTransition,
+        child: KeyedSubtree(
+          key: ValueKey<int>(_currentIndex),
+          child: _buildCurrentTab(),
+        ),
+      ),
       bottomNavigationBar: CustomNavbar(
         currentIndex: _currentIndex,
         onTap: _onNavTap,

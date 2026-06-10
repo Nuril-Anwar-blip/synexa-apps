@@ -283,10 +283,10 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen>
         _progress = await _rehabService.getUserProgress(_userId);
         if (_progress != null) {
           _currentPhase = await _rehabService.getPhaseDetail(
-            _progress!.currentPhaseId,
+            _progress!.currentPhaseNumber,
           );
           _exercises = await _rehabService.getExercises(
-            _progress!.currentPhaseId,
+            _progress!.currentPhaseNumber,
           );
         } else {
           _currentPhase = null;
@@ -309,12 +309,7 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen>
       return;
     }
     try {
-      await Supabase.instance.client.from('rehab_user_progress').upsert({
-        'user_id': _userId,
-        'current_phase_id': 1,
-        'phase_started_at': DateTime.now().toIso8601String(),
-        'streak_count': 0,
-      }, onConflict: 'user_id');
+      await _rehabService.startInitialProgram(_userId);
       await _loadData();
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -548,8 +543,8 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen>
   }
 
   Widget _buildHeroHeader(bool isDark) {
-    final phaseId = _progress?.currentPhaseId ?? 1;
-    final phaseName = _currentPhase?.name ?? 'Fase $phaseId';
+    final phaseNumber = _progress?.currentPhaseNumber ?? 1;
+    final phaseName = _currentPhase?.name ?? 'Fase $phaseNumber';
 
     return Container(
       decoration: BoxDecoration(
@@ -897,8 +892,8 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen>
   }
 
   Widget _buildPhaseInfo(bool isDark) {
-    final phaseId = _progress?.currentPhaseId ?? 1;
-    final phaseStarted = _progress?.phaseStartedAt;
+    final phaseNumber = _progress?.currentPhaseNumber ?? 1;
+    final phaseStarted = _progress?.startedAt;
     final daysSince = phaseStarted != null
         ? DateTime.now().difference(phaseStarted).inDays
         : 0;
@@ -931,9 +926,9 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen>
     };
 
     final desc =
-        phaseDescriptions[phaseId] ??
+        phaseDescriptions[phaseNumber] ??
         'Program rehabilitasi terstruktur untuk pemulihan pascastroke.';
-    final goals = phaseGoals[phaseId] ?? [];
+    final goals = phaseGoals[phaseNumber] ?? [];
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
@@ -969,7 +964,7 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen>
               ),
               const SizedBox(height: 8),
               Text(
-                _currentPhase?.name ?? 'Fase $phaseId',
+                _currentPhase?.name ?? 'Fase $phaseNumber',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 22,

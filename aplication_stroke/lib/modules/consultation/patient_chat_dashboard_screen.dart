@@ -24,6 +24,8 @@
 
 // import '../../../widgets/quick_settings_sheet.dart';
 // import 'consultation_screen.dart';
+import '../../utils/user_profile_helper.dart';
+import '../../utils/app_route_transitions.dart';
 
 // class ChatRoomInfo {
 //   const ChatRoomInfo({
@@ -775,6 +777,7 @@ import 'package:provider/provider.dart';
 import '../../../widgets/quick_settings_sheet.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../providers/language_provider.dart';
+import '../../utils/user_profile_helper.dart';
 import 'consultation_screen.dart';
 
 class ChatRoomInfo {
@@ -865,7 +868,16 @@ class _PatientChatDashboardScreenState extends State<PatientChatDashboardScreen>
     else
       setState(() => _isRefreshing = true);
     try {
-      final mapped = await _fetchPatientRooms(currentUser.id);
+      final patientId = await UserProfileHelper.patientProfileId();
+      if (patientId == null) {
+        setState(() {
+          _isLoading = false;
+          _isRefreshing = false;
+          _errorMessage = 'Profil pasien tidak ditemukan.';
+        });
+        return;
+      }
+      final mapped = await _fetchPatientRooms(patientId);
       if (!mounted) return;
       setState(() {
         _rooms
@@ -907,8 +919,8 @@ class _PatientChatDashboardScreenState extends State<PatientChatDashboardScreen>
       final pharmacistProfiles = <String, Map<String, dynamic>>{};
       if (pharmacistIds.isNotEmpty) {
         final List<dynamic> workers = await _supabase
-            .from('users')
-            .select('id, full_name, photo_url')
+            .from('pharmacists')
+            .select('id, name, profile_picture')
             .filter('id', 'in', pharmacistIds);
         for (final raw in workers) {
           final m = Map<String, dynamic>.from(raw as Map);
@@ -926,8 +938,8 @@ class _PatientChatDashboardScreenState extends State<PatientChatDashboardScreen>
         return ChatRoomInfo(
           roomId: roomId,
           pharmacistId: pharmacistId,
-          pharmacistName: pharmacist['full_name']?.toString() ?? 'Apoteker',
-          pharmacistAvatarUrl: pharmacist['photo_url']?.toString() ?? '',
+          pharmacistName: pharmacist['name']?.toString() ?? 'Apoteker',
+          pharmacistAvatarUrl: pharmacist['profile_picture']?.toString() ?? '',
           lastMessage: latestMessage?['content']?.toString(),
           lastMessageTimestamp: latestMessage?['created_at'] != null
               ? DateTime.parse(latestMessage!['created_at'] as String)
@@ -953,13 +965,13 @@ class _PatientChatDashboardScreenState extends State<PatientChatDashboardScreen>
     if (roomIds.isEmpty) return {};
     final List<dynamic> rows = await _supabase
         .from('messages')
-        .select('room_id, content, created_at')
-        .filter('room_id', 'in', roomIds)
+        .select('chat_room_id, content, created_at')
+        .filter('chat_room_id', 'in', roomIds)
         .order('created_at', ascending: false);
     final latest = <String, Map<String, dynamic>>{};
     for (final raw in rows) {
       final m = Map<String, dynamic>.from(raw as Map);
-      final roomId = m['room_id']?.toString();
+      final roomId = m['chat_room_id']?.toString();
       if (roomId == null || latest.containsKey(roomId)) continue;
       latest[roomId] = m;
     }
@@ -1010,8 +1022,8 @@ class _PatientChatDashboardScreenState extends State<PatientChatDashboardScreen>
   Future<void> _openRoom(ChatRoomInfo room) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ConsultationScreen(
+      AppRouteTransitions.fadeSlide(
+        ConsultationScreen(
           roomId: room.roomId,
           recipientId: room.pharmacistId,
           recipientName: room.pharmacistName,
@@ -1022,18 +1034,17 @@ class _PatientChatDashboardScreenState extends State<PatientChatDashboardScreen>
   }
 
   Future<List<_PharmacistSummary>> _fetchPharmacists() async {
-    final roles = ['apoteker', 'Apoteker', 'pharmacist', 'Pharmacist'];
     final rows = await _supabase
-        .from('users')
-        .select('id, full_name, photo_url')
-        .filter('role', 'in', roles)
-        .order('full_name');
+        .from('pharmacists')
+        .select('id, name, profile_picture')
+        .eq('is_active', true)
+        .order('name');
     return rows
         .map<_PharmacistSummary>(
           (row) => _PharmacistSummary(
             id: row['id']?.toString() ?? '',
-            name: row['full_name']?.toString() ?? 'Apoteker',
-            avatarUrl: row['photo_url']?.toString() ?? '',
+            name: row['name']?.toString() ?? 'Apoteker',
+            avatarUrl: row['profile_picture']?.toString() ?? '',
           ),
         )
         .where((s) => s.id.isNotEmpty)
@@ -1062,9 +1073,13 @@ class _PatientChatDashboardScreenState extends State<PatientChatDashboardScreen>
       if (selected != null) await _startChatWithPharmacist(selected);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isStartingChat = false);
     }
@@ -1072,12 +1087,12 @@ class _PatientChatDashboardScreenState extends State<PatientChatDashboardScreen>
 
   Future<void> _startChatWithPharmacist(_PharmacistSummary pharmacist) async {
     try {
-      final currentUser = _supabase.auth.currentUser;
-      if (currentUser == null) throw Exception('Sesi berakhir.');
+      final patientId = await UserProfileHelper.patientProfileId();
+      if (patientId == null) throw Exception('Profil pasien tidak ditemukan.');
       final existing = await _supabase
           .from('chat_rooms')
           .select('id')
-          .eq('patient_id', currentUser.id)
+          .eq('patient_id', patientId)
           .eq('pharmacist_id', pharmacist.id)
           .maybeSingle();
       final roomId = existing != null
@@ -1085,7 +1100,7 @@ class _PatientChatDashboardScreenState extends State<PatientChatDashboardScreen>
           : ((await _supabase
                     .from('chat_rooms')
                     .insert({
-                      'patient_id': currentUser.id,
+                      'patient_id': patientId,
                       'pharmacist_id': pharmacist.id,
                     })
                     .select('id')
@@ -1094,8 +1109,8 @@ class _PatientChatDashboardScreenState extends State<PatientChatDashboardScreen>
       if (!mounted) return;
       await Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => ConsultationScreen(
+        AppRouteTransitions.fadeSlide(
+          ConsultationScreen(
             roomId: roomId,
             recipientId: pharmacist.id,
             recipientName: pharmacist.name,

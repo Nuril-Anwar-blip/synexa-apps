@@ -51,8 +51,11 @@ import '../../../providers/theme_provider.dart';
 
 // Import Screens
 import '../../medication_reminder/medication_reminder_screen.dart';
-import '../../medication_reminder/models/medication_reminder.dart';
-import '../../../data/mock_medications.dart';
+import '../../../models/home_dashboard_models.dart';
+import '../../../services/remote/home_dashboard_service.dart';
+import '../../../services/remote/staff_presence_service.dart';
+import '../../../utils/user_profile_helper.dart';
+import '../../../utils/app_route_transitions.dart';
 import '../../consultation/patient_chat_dashboard_screen.dart';
 import '../../education/stroke_education_screen.dart';
 import '../../rehab/rehab_dashboard_screen.dart';
@@ -82,21 +85,26 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
 
   late final StreamController<DashboardStats> _statsController;
   late final Stream<DashboardStats> _statsStream;
-  late Stream<List<MedicationReminder>> _remindersStream;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
+  final _dashboard = HomeDashboardService.instance;
+
   RealtimeChannel? _sensorChannel;
-  String? _userId;
+  RealtimeChannel? _medLogChannel;
+  RealtimeChannel? _rehabLogChannel;
+  String? _patientId;
+  String? _pairedPharmacistId;
+  Timer? _staffRefreshTimer;
 
   String _userName = 'Integrated Stroke';
   String? _photoUrl;
   DashboardStats _currentStats = DashboardStats.empty();
-  List<MedicationReminder> _reminders = [];
+  List<TodayMedicationDose> _todayMeds = [];
+  List<TodayExercise> _todayExercises = [];
+  List<StaffMemberStatus> _staffMembers = [];
   List<EmergencyContactModel> _emergencyContacts = [];
-  List<Map<String, dynamic>> _healthcareProviders = [];
-
-  final Map<String, bool> _exerciseCompletionStatus = {};
+  bool _dashboardLoading = true;
 
   @override
   void initState() {
@@ -114,20 +122,37 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
   }
 
   Future<void> _init() async {
-    _userId = _supabase.auth.currentUser?.id;
-    if (_userId == null) return;
+    _patientId = await UserProfileHelper.patientProfileId();
+    if (_patientId == null) {
+      if (mounted) setState(() => _dashboardLoading = false);
+      return;
+    }
 
     await _loadUserProfile();
     await _fetchLatestHeartRate();
+    await _refreshDashboard();
     _listenRealtime();
-    _loadReminders();
-    _loadHealthcareProviders();
-    _loadExerciseCompletionStatus();
+    _staffRefreshTimer = Timer.periodic(
+      const Duration(seconds: 60),
+      (_) => _loadStaffStatus(),
+    );
+  }
+
+  Future<void> _refreshDashboard() async {
+    if (_patientId == null) return;
+    setState(() => _dashboardLoading = true);
+    await Future.wait([
+      _loadTodayMedications(),
+      _loadTodayExercises(),
+      _loadStaffStatus(),
+    ]);
+    if (mounted) setState(() => _dashboardLoading = false);
   }
 
   void _listenRealtime() {
-    if (_userId == null) return;
-    _sensorChannel = _supabase.channel('realtime_sensor_data_$_userId')
+    if (_patientId == null) return;
+
+    _sensorChannel = _supabase.channel('realtime_sensor_data_$_patientId')
       ..onPostgresChanges(
         event: PostgresChangeEvent.insert,
         schema: 'public',
@@ -135,151 +160,108 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
         filter: PostgresChangeFilter(
           type: PostgresChangeFilterType.eq,
           column: 'user_id',
-          value: _userId!,
+          value: _patientId!,
         ),
         callback: (payload) async {
           final row = payload.newRecord;
-          if (row['type'] == 'heart_rate' && row['value'] != null) {
-            final value = row['value'] as Map<String, dynamic>;
-            if (value['heart_rate'] != null) {
-              _updateStats(heartRate: '${value['heart_rate']} bpm');
+          if (row['sensor_type'] == 'heart_rate') {
+            final raw = row['value_raw'];
+            if (raw is Map && raw['bpm'] != null) {
+              _updateStats(heartRate: '${raw['bpm']} bpm');
+            } else if (row['value_numeric'] != null) {
+              _updateStats(heartRate: '${row['value_numeric']} bpm');
             }
           }
         },
       )
       ..subscribe();
+
+    _medLogChannel = _dashboard.subscribeMedicationLogs(
+      _patientId!,
+      _loadTodayMedications,
+    );
+    _rehabLogChannel = _dashboard.subscribeExerciseLogs(
+      _patientId!,
+      _loadTodayExercises,
+    );
+    StaffPresenceService.instance.subscribePresence(_loadStaffStatus);
   }
 
   Future<void> _loadUserProfile() async {
-    if (_userId == null) return;
+    if (_patientId == null) return;
     try {
       final data = await _supabase
           .from('users')
-          .select('full_name, photo_url, emergency_contact')
-          .eq('id', _userId!)
+          .select(
+            'name, profile_picture, paired_pharmacist_id, emergency_contact_name, emergency_contact_phone',
+          )
+          .eq('id', _patientId!)
           .maybeSingle();
 
       if (!mounted || data == null) return;
       setState(() {
-        final name = data['full_name']?.toString() ?? '';
+        final name = data['name']?.toString() ?? '';
         _userName = name.isNotEmpty ? name : 'Integrated Stroke';
-        _photoUrl = data['photo_url']?.toString();
-        if (data['emergency_contact'] != null &&
-            data['emergency_contact'] is List) {
-          _emergencyContacts = (data['emergency_contact'] as List)
-              .map(
-                (e) => EmergencyContactModel.fromMap(e as Map<String, dynamic>),
-              )
-              .toList();
+        _photoUrl = data['profile_picture']?.toString();
+        _pairedPharmacistId = data['paired_pharmacist_id']?.toString();
+        final ecName = data['emergency_contact_name']?.toString();
+        final ecPhone = data['emergency_contact_phone']?.toString();
+        if (ecName != null && ecName.isNotEmpty) {
+          _emergencyContacts = [
+            EmergencyContactModel(
+              name: ecName,
+              phoneNumber: ecPhone ?? '',
+              relationship: '',
+            ),
+          ];
         }
       });
     } catch (_) {}
   }
 
   Future<void> _fetchLatestHeartRate() async {
-    if (_userId == null) return;
+    if (_patientId == null) return;
     try {
       final response = await _supabase
           .from('sensor_data')
-          .select('value')
-          .eq('user_id', _userId!)
-          .eq('type', 'heart_rate')
-          .order('timestamp', ascending: false)
+          .select('value_raw, value_numeric')
+          .eq('user_id', _patientId!)
+          .eq('sensor_type', 'heart_rate')
+          .order('recorded_at', ascending: false)
           .limit(1)
           .maybeSingle();
 
-      final value = response?['value'] as Map<String, dynamic>?;
-      final hr = value?['heart_rate'];
-      if (hr != null) _updateStats(heartRate: '$hr bpm');
-    } catch (_) {}
-  }
-
-  Future<void> _loadReminders() async {
-    if (_userId != null) {
-      try {
-        _remindersStream = _supabase
-            .from('medication_reminders')
-            .stream(primaryKey: ['id'])
-            .eq('user_id', _userId!)
-            .order('time', ascending: true)
-            .map(
-              (rows) =>
-                  rows.map((row) => MedicationReminder.fromMap(row)).toList(),
-            );
-
-        _remindersStream.listen((reminders) {
-          if (mounted) setState(() => _reminders = reminders);
-        });
-      } catch (_) {}
-    } else {
-      if (mounted) {
-        setState(() {
-          _reminders = globalSampleMeds
-              .map(
-                (m) => MedicationReminder(
-                  id: m.id,
-                  name: m.name,
-                  dose: m.dose,
-                  note: m.note,
-                  time: m.time,
-                  period: m.period,
-                  taken: m.taken,
-                  isActive: m.isActive,
-                  currentStock: m.stock,
-                  totalStock: m.totalStock,
-                ),
-              )
-              .toList();
-        });
-      }
-    }
-  }
-
-  Future<void> _loadExerciseCompletionStatus() async {
-    if (_userId == null) return;
-    try {
-      final now = DateTime.now();
-      final startOfDay = DateTime(now.year, now.month, now.day).toUtc();
-      final endOfDay = startOfDay.add(const Duration(days: 1));
-      final todayKey = DateFormat('EEEE', 'id_ID').format(now).toLowerCase();
-
-      final response = await _supabase
-          .from('rehab_exercise_logs')
-          .select('id')
-          .eq('user_id', _userId!)
-          .eq('is_aborted', false)
-          .gte('completed_at', startOfDay.toIso8601String())
-          .lt('completed_at', endOfDay.toIso8601String())
-          .maybeSingle();
-
-      if (mounted) {
-        setState(() => _exerciseCompletionStatus[todayKey] = response != null);
+      final raw = response?['value_raw'];
+      if (raw is Map && raw['bpm'] != null) {
+        _updateStats(heartRate: '${raw['bpm']} bpm');
+      } else if (response?['value_numeric'] != null) {
+        _updateStats(heartRate: '${response!['value_numeric']} bpm');
       }
     } catch (_) {}
   }
 
-  Future<void> _loadHealthcareProviders() async {
+  Future<void> _loadTodayMedications() async {
+    if (_patientId == null) return;
     try {
-      final roles = [
-        'apoteker',
-        'Apoteker',
-        'pharmacist',
-        'Pharmacist',
-        'dokter',
-        'Dokter',
-      ];
-      final response = await _supabase
-          .from('users')
-          .select('id, full_name, photo_url, role, phone_number')
-          .filter('role', 'in', roles)
-          .limit(3);
+      final meds = await _dashboard.loadTodayMedications(_patientId!);
+      if (mounted) setState(() => _todayMeds = meds);
+    } catch (_) {}
+  }
 
-      if (mounted) {
-        setState(
-          () =>
-              _healthcareProviders = List<Map<String, dynamic>>.from(response),
-        );
-      }
+  Future<void> _loadTodayExercises() async {
+    if (_patientId == null) return;
+    try {
+      final exercises = await _dashboard.loadTodayExercises(_patientId!);
+      if (mounted) setState(() => _todayExercises = exercises);
+    } catch (_) {}
+  }
+
+  Future<void> _loadStaffStatus() async {
+    try {
+      final staff = await _dashboard.loadStaffStatus(
+        pairedPharmacistId: _pairedPharmacistId,
+      );
+      if (mounted) setState(() => _staffMembers = staff);
     } catch (_) {}
   }
 
@@ -290,17 +272,62 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
     _statsController.add(_currentStats);
   }
 
-  Future<void> _toggleMedication(MedicationReminder reminder) async {
+  Future<void> _toggleMedication(TodayMedicationDose dose) async {
+    if (_patientId == null) return;
+    final newTaken = !dose.taken;
+    final newStock = dose.quantityRemaining != null
+        ? (newTaken
+              ? (dose.quantityRemaining! - dose.doseAmount).clamp(0, 9999)
+              : dose.quantityRemaining! + dose.doseAmount)
+        : null;
+
+    setState(() {
+      _todayMeds = _todayMeds.map((d) {
+        if (d.reminderId == dose.reminderId &&
+            d.scheduledAt == dose.scheduledAt) {
+          return d.copyWith(taken: newTaken, quantityRemaining: newStock);
+        }
+        return d;
+      }).toList();
+    });
+
     try {
-      await _supabase
-          .from('medication_reminders')
-          .update({'taken': !reminder.taken})
-          .eq('id', reminder.id);
+      await _dashboard.toggleMedicationDose(dose, _patientId!, newTaken);
     } catch (e) {
+      await _loadTodayMedications();
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal memperbarui: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memperbarui: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleExercise(TodayExercise exercise) async {
+    if (_patientId == null) return;
+    final newCompleted = !exercise.completed;
+
+    setState(() {
+      _todayExercises = _todayExercises.map((e) {
+        if (e.id == exercise.id) {
+          return e.copyWith(completed: newCompleted);
+        }
+        return e;
+      }).toList();
+    });
+
+    try {
+      await _dashboard.toggleExercise(
+        exercise,
+        _patientId!,
+        newCompleted,
+      );
+    } catch (e) {
+      await _loadTodayExercises();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memperbarui latihan: $e')),
+        );
       }
     }
   }
@@ -308,8 +335,14 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
   @override
   void dispose() {
     _searchController.dispose();
+    _staffRefreshTimer?.cancel();
     _sensorChannel?.unsubscribe();
     if (_sensorChannel != null) _supabase.removeChannel(_sensorChannel!);
+    _medLogChannel?.unsubscribe();
+    if (_medLogChannel != null) _supabase.removeChannel(_medLogChannel!);
+    _rehabLogChannel?.unsubscribe();
+    if (_rehabLogChannel != null) _supabase.removeChannel(_rehabLogChannel!);
+    StaffPresenceService.instance.disposeChannel();
     _statsController.close();
     _pulseController.dispose();
     super.dispose();
@@ -355,14 +388,21 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
               ),
             ),
 
-            // ── Medication Reminders ──
-            if (_reminders.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: _buildMedicationSection(lang, isDark),
-                ),
+            // ── Obat Hari Ini ──
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: _buildMedicationSection(lang, isDark),
               ),
+            ),
+
+            // ── Latihan Hari Ini ──
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: _buildTodayExerciseSection(lang, isDark),
+              ),
+            ),
 
             // ── Feature Grid ──
             SliverToBoxAdapter(
@@ -372,14 +412,13 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
               ),
             ),
 
-            // ── Healthcare Providers ──
-            if (_healthcareProviders.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: _buildHealthcareSection(lang, isDark),
-                ),
+            // ── Tenaga Medis Jaga / Online ──
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: _buildHealthcareSection(lang, isDark),
               ),
+            ),
 
             // ── Emergency Buttons ──
             SliverToBoxAdapter(
@@ -635,8 +674,8 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
   // ──────────────────────────────────────────────────────────────────────────
   Widget _buildQuickStats(bool isDark, LanguageProvider lang) {
     final today = DateTime.now();
-    final daysDone = _exerciseCompletionStatus.values.where((v) => v).length;
-    final medicsTaken = _reminders.where((r) => r.taken).length;
+    final exercisesDone = _todayExercises.where((e) => e.completed).length;
+    final medicsTaken = _todayMeds.where((r) => r.taken).length;
 
     return Transform.translate(
       offset: const Offset(0, -16),
@@ -659,7 +698,9 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
             _StatItem(
               icon: Icons.fitness_center_rounded,
               color: Colors.green,
-              value: '$daysDone',
+              value: _todayExercises.isEmpty
+                  ? '0'
+                  : '$exercisesDone/${_todayExercises.length}',
               label: lang.translate({
                 'id': 'Latihan',
                 'en': 'Exercises',
@@ -671,7 +712,9 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
             _StatItem(
               icon: Icons.medication_rounded,
               color: Colors.blue,
-              value: '$medicsTaken/${_reminders.length}',
+              value: _todayMeds.isEmpty
+                  ? '0'
+                  : '$medicsTaken/${_todayMeds.length}',
               label: lang.translate({
                 'id': 'Obat',
                 'en': 'Medicine',
@@ -867,9 +910,10 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
   // MEDICATION REMINDERS
   // ──────────────────────────────────────────────────────────────────────────
   Widget _buildMedicationSection(LanguageProvider lang, bool isDark) {
-    final todayReminders = _reminders.take(3).toList();
-    final doneCount = _reminders.where((r) => r.taken).length;
-    final progress = _reminders.isEmpty ? 0.0 : doneCount / _reminders.length;
+    final visibleMeds = _todayMeds.take(5).toList();
+    final doneCount = _todayMeds.where((r) => r.taken).length;
+    final progress =
+        _todayMeds.isEmpty ? 0.0 : doneCount / _todayMeds.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -879,17 +923,17 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
           children: [
             _SectionHeader(
               title: lang.translate({
-                'id': 'Pengingat Obat',
-                'en': 'Medication',
-                'ms': 'Ubat',
+                'id': 'Obat Hari Ini',
+                'en': "Today's Medicine",
+                'ms': 'Ubat Hari Ini',
               }),
               isDark: isDark,
             ),
             TextButton.icon(
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const MedicationReminderScreenV2(),
+                AppRouteTransitions.fadeSlide(
+                  const MedicationReminderScreenV2(),
                 ),
               ),
               icon: const Icon(Icons.arrow_forward_ios, size: 12),
@@ -914,138 +958,382 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
               ),
             ],
           ),
-          child: Column(
-            children: [
-              // Progress bar
-              Row(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 8,
-                        backgroundColor: isDark
-                            ? Colors.white12
-                            : Colors.grey.shade200,
-                        valueColor: AlwaysStoppedAnimation(
-                          progress == 1 ? Colors.green : Colors.indigo,
-                        ),
-                      ),
-                    ),
+          child: _dashboardLoading
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                  const SizedBox(width: 10),
-                  Text(
-                    '$doneCount/${_reminders.length}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white70 : Colors.black54,
-                      fontSize: 13,
-                    ),
+                )
+              : _todayMeds.isEmpty
+              ? Text(
+                  lang.translate({
+                    'id': 'Belum ada jadwal obat hari ini.',
+                    'en': 'No medicine scheduled for today.',
+                    'ms': 'Tiada jadual ubat hari ini.',
+                  }),
+                  style: TextStyle(
+                    color: isDark ? Colors.white54 : Colors.black45,
+                    fontSize: 13,
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Medication items
-              ...todayReminders.map(
-                (reminder) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: GestureDetector(
-                    onTap: () => _toggleMedication(reminder),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: reminder.taken
-                            ? Colors.green.withValues(alpha: 0.1)
-                            : (isDark
-                                  ? Colors.white.withValues(alpha: 0.05)
-                                  : Colors.grey.shade50),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: reminder.taken
-                              ? Colors.green.withValues(alpha: 0.4)
-                              : Colors.transparent,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: reminder.taken
-                                  ? Colors.green.withValues(alpha: 0.15)
-                                  : Colors.indigo.withValues(alpha: 0.12),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              reminder.taken
-                                  ? Icons.check_circle_rounded
-                                  : Icons.medication_rounded,
-                              size: 18,
-                              color: reminder.taken
-                                  ? Colors.green
-                                  : Colors.indigo,
+                )
+              : Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              minHeight: 8,
+                              backgroundColor: isDark
+                                  ? Colors.white12
+                                  : Colors.grey.shade200,
+                              valueColor: AlwaysStoppedAnimation(
+                                progress == 1 ? Colors.green : Colors.indigo,
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          '$doneCount/${_todayMeds.length}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white70 : Colors.black54,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ...visibleMeds.map(
+                      (dose) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                          onTap: () => _toggleMedication(dose),
+                          borderRadius: BorderRadius.circular(12),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 250),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: dose.taken
+                                  ? Colors.green.withValues(alpha: 0.1)
+                                  : (isDark
+                                        ? Colors.white.withValues(alpha: 0.05)
+                                        : Colors.grey.shade50),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: dose.taken
+                                    ? Colors.green.withValues(alpha: 0.4)
+                                    : Colors.transparent,
+                              ),
+                            ),
+                            child: Row(
                               children: [
-                                Text(
-                                  reminder.name,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                    decoration: reminder.taken
-                                        ? TextDecoration.lineThrough
-                                        : null,
-                                    color: isDark
-                                        ? Colors.white
-                                        : Colors.black87,
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: dose.taken
+                                        ? Colors.green.withValues(alpha: 0.15)
+                                        : Colors.indigo.withValues(alpha: 0.12),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    dose.taken
+                                        ? Icons.check_circle_rounded
+                                        : Icons.medication_rounded,
+                                    size: 18,
+                                    color: dose.taken
+                                        ? Colors.green
+                                        : Colors.indigo,
                                   ),
                                 ),
-                                Text(
-                                  reminder.time.format(context),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isDark
-                                        ? Colors.white38
-                                        : Colors.black38,
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        dose.medicationName,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                          decoration: dose.taken
+                                              ? TextDecoration.lineThrough
+                                              : null,
+                                          color: isDark
+                                              ? Colors.white
+                                              : Colors.black87,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${dose.time.format(context)} · ${dose.dosage} · ${_periodLabel(dose.period, lang)}${dose.quantityRemaining != null ? ' · Stok: ${dose.quantityRemaining}' : ''}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: isDark
+                                              ? Colors.white38
+                                              : Colors.black38,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
+                                if (!dose.taken)
+                                  Icon(
+                                    Icons.touch_app_outlined,
+                                    size: 16,
+                                    color: Colors.indigo.withValues(alpha: 0.5),
+                                  ),
+                                if (dose.taken)
+                                  Text(
+                                    lang.translate({
+                                      'id': 'Sudah',
+                                      'en': 'Done',
+                                      'ms': 'Selesai',
+                                    }),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
-                          if (reminder.taken)
-                            Text(
-                              lang.translate({
-                                'id': 'Sudah',
-                                'en': 'Done',
-                                'ms': 'Selesai',
-                              }),
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.green,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
+                  ],
                 ),
-              ),
-            ],
-          ),
         ),
       ],
     );
+  }
+
+  Widget _buildTodayExerciseSection(LanguageProvider lang, bool isDark) {
+    final visible = _todayExercises.take(5).toList();
+    final doneCount = _todayExercises.where((e) => e.completed).length;
+    final progress = _todayExercises.isEmpty
+        ? 0.0
+        : doneCount / _todayExercises.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _SectionHeader(
+              title: lang.translate({
+                'id': 'Latihan Hari Ini',
+                'en': "Today's Exercise",
+                'ms': 'Latihan Hari Ini',
+              }),
+              isDark: isDark,
+            ),
+            TextButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                AppRouteTransitions.fadeSlide(const RehabDashboardScreen()),
+              ),
+              icon: const Icon(Icons.arrow_forward_ios, size: 12),
+              label: Text(
+                lang.translate({'id': 'Semua', 'en': 'All', 'ms': 'Semua'}),
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: _dashboardLoading
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : _todayExercises.isEmpty
+              ? Text(
+                  lang.translate({
+                    'id':
+                        'Belum ada program latihan. Mulai dari menu Rehabilitasi.',
+                    'en': 'No exercise program yet. Start from Rehab menu.',
+                    'ms':
+                        'Tiada program latihan. Mulakan dari menu Pemulihan.',
+                  }),
+                  style: TextStyle(
+                    color: isDark ? Colors.white54 : Colors.black45,
+                    fontSize: 13,
+                  ),
+                )
+              : Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              minHeight: 8,
+                              backgroundColor: isDark
+                                  ? Colors.white12
+                                  : Colors.grey.shade200,
+                              valueColor: AlwaysStoppedAnimation(
+                                progress == 1 ? Colors.green : Colors.teal,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          '$doneCount/${_todayExercises.length}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white70 : Colors.black54,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ...visible.map(
+                      (exercise) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => _toggleExercise(exercise),
+                            borderRadius: BorderRadius.circular(12),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: exercise.completed
+                                    ? Colors.green.withValues(alpha: 0.1)
+                                    : (isDark
+                                          ? Colors.white.withValues(alpha: 0.05)
+                                          : Colors.grey.shade50),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: exercise.completed
+                                      ? Colors.green.withValues(alpha: 0.4)
+                                      : Colors.transparent,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    exercise.completed
+                                        ? Icons.check_circle_rounded
+                                        : Icons.fitness_center_rounded,
+                                    size: 20,
+                                    color: exercise.completed
+                                        ? Colors.green
+                                        : Colors.teal,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          exercise.name,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 13,
+                                            decoration: exercise.completed
+                                                ? TextDecoration.lineThrough
+                                                : null,
+                                            color: isDark
+                                                ? Colors.white
+                                                : Colors.black87,
+                                          ),
+                                        ),
+                                        Text(
+                                          '${_periodLabel(exercise.sessionPeriod, lang)} · ${exercise.durationText}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: isDark
+                                                ? Colors.white38
+                                                : Colors.black38,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (!exercise.completed)
+                                    Icon(
+                                      Icons.touch_app_outlined,
+                                      size: 16,
+                                      color: Colors.teal.withValues(alpha: 0.5),
+                                    ),
+                                  if (exercise.completed)
+                                    Text(
+                                      lang.translate({
+                                        'id': 'Selesai',
+                                        'en': 'Done',
+                                        'ms': 'Selesai',
+                                      }),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+
+  String _periodLabel(String period, LanguageProvider lang) {
+    switch (period) {
+      case 'pagi':
+        return lang.translate({'id': 'Pagi', 'en': 'Morning', 'ms': 'Pagi'});
+      case 'siang':
+        return lang.translate({'id': 'Siang', 'en': 'Afternoon', 'ms': 'Petang'});
+      case 'sore':
+        return lang.translate({'id': 'Sore', 'en': 'Evening', 'ms': 'Petang'});
+      case 'malam':
+        return lang.translate({'id': 'Malam', 'en': 'Night', 'ms': 'Malam'});
+      default:
+        return period;
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -1070,7 +1358,8 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
           context,
           MaterialPageRoute(builder: (_) => const ExerciseScreenV2()),
         ),
-        completed: _exerciseCompletionStatus.values.any((v) => v),
+        completed: _todayExercises.isNotEmpty &&
+            _todayExercises.every((e) => e.completed),
       ),
       _FeatureData(
         icon: Icons.health_and_safety_rounded,
@@ -1162,6 +1451,8 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
   // HEALTHCARE PROVIDERS
   // ──────────────────────────────────────────────────────────────────────────
   Widget _buildHealthcareSection(LanguageProvider lang, bool isDark) {
+    final onDuty = _staffMembers.where((s) => s.isAvailable).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1170,17 +1461,17 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
           children: [
             _SectionHeader(
               title: lang.translate({
-                'id': 'Tenaga Medis',
-                'en': 'Medical Staff',
-                'ms': 'Kakitangan Perubatan',
+                'id': 'Jaga & Online Sekarang',
+                'en': 'On Duty & Online',
+                'ms': 'Bertugas & Dalam Talian',
               }),
               isDark: isDark,
             ),
             TextButton(
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const PatientChatDashboardScreen(),
+                AppRouteTransitions.fadeSlide(
+                  const PatientChatDashboardScreen(),
                 ),
               ),
               child: Text(
@@ -1189,129 +1480,231 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        ..._healthcareProviders.map((provider) {
-          final name = provider['full_name']?.toString() ?? 'Tenaga Medis';
-          final role = provider['role']?.toString() ?? '';
-          final photo = provider['photo_url']?.toString();
-          final isPharmacist =
-              role.toLowerCase().contains('apoteker') ||
-              role.toLowerCase().contains('pharmacist');
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E2A3A) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+        if (onDuty.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              lang.translate({
+                'id': '${onDuty.length} tenaga medis tersedia saat ini',
+                'en': '${onDuty.length} staff available now',
+                'ms': '${onDuty.length} kakitangan tersedia sekarang',
+              }),
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? Colors.greenAccent : Colors.teal.shade700,
+              ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: isPharmacist
-                          ? [Colors.teal.shade300, Colors.teal.shade600]
-                          : [Colors.blue.shade300, Colors.blue.shade600],
-                    ),
+          ),
+        const SizedBox(height: 4),
+        if (_dashboardLoading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(12),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else if (_staffMembers.isEmpty)
+          Text(
+            lang.translate({
+              'id': 'Belum ada data tenaga medis.',
+              'en': 'No medical staff data yet.',
+              'ms': 'Tiada data kakitangan perubatan.',
+            }),
+            style: TextStyle(
+              color: isDark ? Colors.white54 : Colors.black45,
+              fontSize: 13,
+            ),
+          )
+        else
+          ..._staffMembers.take(6).map((staff) {
+            final isPharmacist = staff.isPharmacist;
+            final statusLabel = _staffStatusLabel(staff, lang);
+            final statusColor = staff.isAvailable
+                ? Colors.green
+                : (isDark ? Colors.white38 : Colors.black38);
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E2A3A) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: staff.isAvailable
+                    ? Border.all(color: Colors.green.withValues(alpha: 0.35))
+                    : null,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
                   ),
-                  padding: const EdgeInsets.all(2),
-                  child: CircleAvatar(
-                    radius: 22,
-                    backgroundImage: photo != null ? NetworkImage(photo) : null,
-                    backgroundColor: Colors.white,
-                    child: photo == null
-                        ? Icon(
-                            isPharmacist
-                                ? Icons.local_pharmacy
-                                : Icons.medical_services,
-                            color: isPharmacist ? Colors.teal : Colors.blue,
-                            size: 22,
-                          )
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                ],
+              ),
+              child: Row(
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
                     children: [
-                      Text(
-                        name,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: isDark ? Colors.white : Colors.black87,
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: isPharmacist
+                                ? [Colors.teal.shade300, Colors.teal.shade600]
+                                : [Colors.blue.shade300, Colors.blue.shade600],
+                          ),
+                        ),
+                        padding: const EdgeInsets.all(2),
+                        child: CircleAvatar(
+                          radius: 22,
+                          backgroundImage: staff.photoUrl != null
+                              ? NetworkImage(staff.photoUrl!)
+                              : null,
+                          backgroundColor: Colors.white,
+                          child: staff.photoUrl == null
+                              ? Icon(
+                                  isPharmacist
+                                      ? Icons.local_pharmacy
+                                      : Icons.medical_services,
+                                  color:
+                                      isPharmacist ? Colors.teal : Colors.blue,
+                                  size: 22,
+                                )
+                              : null,
                         ),
                       ),
-                      Text(
-                        isPharmacist
-                            ? lang.translate({
-                                'id': 'Apoteker Klinis',
-                                'en': 'Clinical Pharmacist',
-                                'ms': 'Ahli Farmasi',
-                              })
-                            : lang.translate({
-                                'id': 'Dokter',
-                                'en': 'Doctor',
-                                'ms': 'Doktor',
-                              }),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isPharmacist ? Colors.teal : Colors.blue,
+                      Positioned(
+                        right: -1,
+                        bottom: -1,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: staff.isOnline ? Colors.green : Colors.grey,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const PatientChatDashboardScreen(),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          staff.name,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        Text(
+                          staff.subtitle,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? Colors.white54 : Colors.black54,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              staff.isOnDuty
+                                  ? Icons.schedule_rounded
+                                  : Icons.circle,
+                              size: 10,
+                              color: statusColor,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              statusLabel,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: statusColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: isPharmacist
-                            ? [Colors.teal.shade400, Colors.teal.shade700]
-                            : [Colors.blue.shade400, Colors.blue.shade700],
+                  if (isPharmacist)
+                    GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        AppRouteTransitions.fadeSlide(
+                          const PatientChatDashboardScreen(),
+                        ),
                       ),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      lang.translate({
-                        'id': 'Chat',
-                        'en': 'Chat',
-                        'ms': 'Sembang',
-                      }),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.teal.shade400,
+                              Colors.teal.shade700,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          lang.translate({
+                            'id': 'Chat',
+                            'en': 'Chat',
+                            'ms': 'Sembang',
+                          }),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
+                ],
+              ),
+            );
+          }),
       ],
     );
+  }
+
+  String _staffStatusLabel(StaffMemberStatus staff, LanguageProvider lang) {
+    if (staff.isOnline && staff.isOnDuty) {
+      return lang.translate({
+        'id': 'Jaga · Online',
+        'en': 'On duty · Online',
+        'ms': 'Bertugas · Dalam talian',
+      });
+    }
+    if (staff.isOnDuty) {
+      return lang.translate({
+        'id': 'Sedang jaga',
+        'en': 'On duty',
+        'ms': 'Sedang bertugas',
+      });
+    }
+    if (staff.isOnline) {
+      return lang.translate({
+        'id': 'Online',
+        'en': 'Online',
+        'ms': 'Dalam talian',
+      });
+    }
+    return lang.translate({
+      'id': 'Offline',
+      'en': 'Offline',
+      'ms': 'Luar talian',
+    });
   }
 
   // ──────────────────────────────────────────────────────────────────────────

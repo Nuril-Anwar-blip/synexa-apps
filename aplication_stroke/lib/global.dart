@@ -38,7 +38,7 @@ import 'services/local/notification_service.dart';
  */
 
 class Global {
-  static Future init() async {
+  static Future init({bool initNotifications = true}) async {
     await dotenv.load(fileName: ".env");
     final url = dotenv.env['SUPABASE_URL'];
     final anonKey =
@@ -53,7 +53,9 @@ class Global {
 
     await Supabase.initialize(url: url, anonKey: anonKey);
 
-    // Initialize Global Notification Service
-    await NotificationService().init();
+    // Notifikasi hanya diperlukan di app mobile (Android/iOS).
+    if (initNotifications) {
+      await NotificationService().init();
+    }
   }
 }

@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../../models/post_model.dart';
 import '../video_player_screen.dart';
+import '../../../utils/app_route_transitions.dart';
 
 /// Kartu tampilan postingan dalam feed komunitas.
 /// Menampilkan info user, tanggal posting, konten, media, dan aksi (like/comment/share).
@@ -114,7 +115,7 @@ class PostCard extends StatelessWidget {
         onTap = () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => VideoPlayerScreen(videoUrl: url)),
+            AppRouteTransitions.fadeSlide(VideoPlayerScreen(videoUrl: url)),
           );
         };
         break;

@@ -42,7 +42,17 @@ class NotificationService {
         importance: Importance.max,
         playSound: true,
         enableVibration: true,
-        sound: RawResourceAndroidNotificationSound('alarm_sound'),
+        // Pakai suara default sistem (file res/raw opsional)
+      );
+
+  static const AndroidNotificationChannel _testChannel =
+      AndroidNotificationChannel(
+        'test_channel',
+        'Tes Alarm',
+        description: 'Coba suara alarm',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
       );
 
   Future<void> init() async {
@@ -65,6 +75,7 @@ class NotificationService {
         >();
     if (androidImpl != null) {
       await androidImpl.createNotificationChannel(_medChannel);
+      await androidImpl.createNotificationChannel(_testChannel);
       try {
         await androidImpl.requestNotificationsPermission();
       } catch (_) {}
@@ -110,7 +121,6 @@ class NotificationService {
         priority: Priority.high,
         playSound: true,
         enableVibration: true,
-        sound: const RawResourceAndroidNotificationSound('alarm_sound'),
         ticker: 'MedicationReminder',
       );
 
@@ -139,25 +149,34 @@ class NotificationService {
     }
   }
 
-  Future<void> testAlarmNow() async {
+  Future<void> testAlarmNow({String? body}) async {
     final androidDetails = AndroidNotificationDetails(
-      'test_channel',
-      'Tes Alarm',
-      channelDescription: 'Coba suara alarm sekarang',
+      _testChannel.id,
+      _testChannel.name,
+      channelDescription: _testChannel.description,
       importance: Importance.max,
       priority: Priority.high,
       playSound: true,
       enableVibration: true,
-      sound: const RawResourceAndroidNotificationSound('alarm_sound'),
+      category: AndroidNotificationCategory.alarm,
+      fullScreenIntent: true,
     );
     final details = NotificationDetails(android: androidDetails);
 
-    // v18+: named parameters
     await _notifPlugin.show(
       id: 999,
-      title: 'Tes Alarm',
-      body: 'Alarm berbunyi sekarang',
+      title: 'Waktunya Minum Obat!',
+      body: body ?? 'Alarm pengingat obat',
       notificationDetails: details,
+    );
+  }
+
+  /// Bunyi + getar untuk popup alarm di dalam aplikasi.
+  Future<void> playInAppAlarm({String? medicationName}) async {
+    await testAlarmNow(
+      body: medicationName != null
+          ? 'Minum obat: $medicationName'
+          : 'Pengingat obat aktif',
     );
   }
 }

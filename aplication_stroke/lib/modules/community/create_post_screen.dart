@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../utils/user_profile_helper.dart';
+
 enum MediaType { image, video, file }
 
 /// Halaman Buat Postingan
@@ -86,8 +88,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     String? mediaUrl;
 
     try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) throw 'Pengguna belum masuk.';
+      final authUser = Supabase.instance.client.auth.currentUser;
+      if (authUser == null) throw Exception('Pengguna belum masuk.');
+
+      final profileId = await UserProfileHelper.patientProfileId();
+      if (profileId == null) {
+        throw Exception('Profil pasien tidak ditemukan. Silakan login ulang.');
+      }
 
       if (_selectedFile != null && _mediaType != null) {
         final bucket = switch (_mediaType!) {
@@ -97,17 +104,17 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         };
 
         final fileName =
-            '${user.id}/${DateTime.now().millisecondsSinceEpoch}_${_fileName ?? 'attachment'}';
+            '${authUser.id}/${DateTime.now().millisecondsSinceEpoch}_${_fileName ?? 'attachment'}';
         final storage = Supabase.instance.client.storage.from(bucket);
         await storage.upload(fileName, _selectedFile!);
         mediaUrl = storage.getPublicUrl(fileName);
       }
 
       await Supabase.instance.client.from('posts').insert({
-        'user_id': user.id,
+        'user_id': profileId,
         'content': content,
-        'media_url': mediaUrl,
-        'media_type': _mediaType?.name,
+        if (mediaUrl != null && _mediaType == MediaType.image)
+          'image_url': mediaUrl,
       });
 
       if (!mounted) return;
@@ -120,10 +127,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      final friendly = msg.contains('Bucket not found')
+          ? 'Bucket storage belum dibuat. Jalankan smart_stroke_storage_setup.sql di Supabase.'
+          : 'Gagal mengirim postingan: $msg';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Gagal mengirim postingan: $e'),
+          content: Text(friendly),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
         ),
       );
     } finally {

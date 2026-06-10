@@ -37,8 +37,14 @@ class Post {
     return Post(
       id: map['id'],
       userId: map['user_id'],
-      userName: userData?['full_name'] ?? map['user_full_name'] ?? 'Nama Pengguna',
-      userAvatarUrl: userData?['photo_url'] ?? map['user_avatar_url'] ?? '',
+      userName: userData?['name'] ??
+          userData?['full_name'] ??
+          map['user_full_name'] ??
+          'Nama Pengguna',
+      userAvatarUrl: userData?['profile_picture'] ??
+          userData?['photo_url'] ??
+          map['user_avatar_url'] ??
+          '',
       createdAt: DateTime.parse(map['created_at']),
       content: map['content'] ?? '',
       media_url: map['image_url'] ?? map['media_url'],

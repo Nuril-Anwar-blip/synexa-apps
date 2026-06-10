@@ -16,6 +16,8 @@ import '../../providers/language_provider.dart';
 import '../../auth/login_screen.dart';
 import '../pairing_scanner/pairing_scanner_screen.dart';
 import '../settings/settings_screen.dart';
+import '../../utils/app_route_transitions.dart';
+
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -59,7 +61,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       final response = await SupabaseManager.client
           .from('users')
           .select()
-          .eq('id', user.id)
+          .eq('auth_id', user.id)
           .maybeSingle();
       if (mounted) {
         setState(() {
@@ -81,39 +83,37 @@ class _ProfileScreenState extends State<ProfileScreen>
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
+    final emergency = data['emergencyContacts'] as List?;
+    final firstEmergency = (emergency != null && emergency.isNotEmpty)
+        ? emergency.first
+        : null;
+
     final Map<String, dynamic> dataForSupabase = {
-      'full_name': data['name'],
-      'phone_number': data['phoneNumber'],
-      'birth_date': data['birthDate'] != null
-          ? (data['birthDate'] as DateTime).toIso8601String()
-          : null,
+      'name': data['name'],
+      'phone': data['phoneNumber'],
+      if (data['birthDate'] != null)
+        'date_of_birth': (data['birthDate'] as DateTime)
+            .toIso8601String()
+            .split('T')
+            .first,
       'gender': data['gender'],
-      'weight': data['weight'],
-      'height': data['height'],
-      'medical_history': data['medicalHistory'],
-      'drug_allergy': data['drugAllergy'],
-      'emergency_contact':
-          data['emergencyContacts']
-              ?.map(
-                (e) => {
-                  'name': e.name,
-                  'phone_number': e.phoneNumber,
-                  'relationship': e.relationship ?? '',
-                },
-              )
-              .toList() ??
-          [],
+      if (data['weight'] != null) 'weight_kg': data['weight'],
+      if (data['height'] != null) 'height_cm': data['height'],
+      if (firstEmergency != null) ...{
+        'emergency_contact_name': firstEmergency.name,
+        'emergency_contact_phone': firstEmergency.phoneNumber,
+      },
     };
 
     if (data['photoUrl'] != null && (data['photoUrl'] as String).isNotEmpty) {
-      dataForSupabase['photo_url'] = data['photoUrl'];
+      dataForSupabase['profile_picture'] = data['photoUrl'];
     }
 
     try {
       await Supabase.instance.client
           .from('users')
           .update(dataForSupabase)
-          .eq('id', user.id);
+          .eq('auth_id', user.id);
     } catch (e) {
       if (mounted) _showSnack('Gagal memperbarui profil: $e');
     }
@@ -124,8 +124,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (userModel == null) return;
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
-      PageRouteBuilder(
-        pageBuilder: (_, anim, __) => EditProfileScreen(
+      AppRouteTransitions.fadeSlide(
+        EditProfileScreen(
           name: userModel?.fullName ?? '',
           phoneNumber: userModel?.phoneNumber ?? '',
           birthDate: userModel?.birthDate,
@@ -136,13 +136,6 @@ class _ProfileScreenState extends State<ProfileScreen>
           drugAllergy: userModel?.drugAllergy.join(', '),
           emergencyContacts: userModel?.emergencyContacts ?? [],
           photoUrl: userModel?.photoUrl,
-        ),
-        transitionsBuilder: (_, anim, __, child) => SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1, 0),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-          child: child,
         ),
       ),
     );
@@ -195,7 +188,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       await Supabase.instance.client.auth.signOut();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        AppRouteTransitions.fadeSlide(const LoginScreen()),
         (_) => false,
       );
     }
@@ -381,8 +374,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ],
                               onTap: () => Navigator.push(
                                 context,
-                                MaterialPageRoute(
-                                  builder: (_) => const PairingScannerScreen(),
+                                AppRouteTransitions.fadeSlide(
+                                  const PairingScannerScreen(),
                                 ),
                               ),
                             ),
@@ -406,8 +399,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ],
                               onTap: () => Navigator.push(
                                 context,
-                                MaterialPageRoute(
-                                  builder: (_) => const SettingsScreen(),
+                                AppRouteTransitions.fadeSlide(
+                                  const SettingsScreen(),
                                 ),
                               ),
                             ),
@@ -443,8 +436,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildSliverAppBar(bool isDark, LanguageProvider lang, double fs) {
     return SliverAppBar(
-      expandedHeight: 300,
+      expandedHeight: 240,
       pinned: true,
+      stretch: true,
       backgroundColor: isDark ? const Color(0xFF0F1923) : Colors.white,
       elevation: 0,
       actions: [
@@ -1021,108 +1015,94 @@ class _ProfileHeroCard extends StatelessWidget {
       ),
       child: SafeArea(
         bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 60, 20, 28),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.2),
-                    ),
-                    child: CircleAvatar(
-                      radius: 46,
-                      backgroundColor: Colors.white,
-                      backgroundImage:
-                          (photoUrl != null && photoUrl!.isNotEmpty)
-                          ? NetworkImage(photoUrl!)
-                          : null,
-                      child: (photoUrl == null || photoUrl!.isEmpty)
-                          ? Icon(
-                              Icons.person,
-                              size: 48,
-                              color: Colors.teal.shade300,
-                            )
-                          : null,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: onEdit,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
-                            blurRadius: 8,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SizedBox(
+              height: constraints.maxHeight,
+              width: constraints.maxWidth,
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.2),
+                        ),
+                        child: CircleAvatar(
+                          radius: 38,
+                          backgroundColor: Colors.white,
+                          backgroundImage:
+                              (photoUrl != null && photoUrl!.isNotEmpty)
+                              ? NetworkImage(photoUrl!)
+                              : null,
+                          child: (photoUrl == null || photoUrl!.isEmpty)
+                              ? Icon(
+                                  Icons.person,
+                                  size: 40,
+                                  color: Colors.teal.shade300,
+                                )
+                              : null,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: onEdit,
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 6,
+                              ),
+                            ],
                           ),
-                        ],
+                          child: Icon(
+                            Icons.edit,
+                            size: 13,
+                            color: Colors.teal.shade600,
+                          ),
+                        ),
                       ),
-                      child: Icon(
-                        Icons.edit,
-                        size: 14,
-                        color: Colors.teal.shade600,
-                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    name,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: (20 * fs).clamp(18.0, 22.0),
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                name,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22 * fs,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  _infoPill(Icons.email_outlined, email),
-                  _infoPill(Icons.phone_rounded, phone),
-                ],
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _infoPill(IconData icon, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.18),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 14),
-          const SizedBox(width: 6),
-          Text(
-            value,
-            style: TextStyle(color: Colors.white, fontSize: 12 * fs),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ====================================================================
