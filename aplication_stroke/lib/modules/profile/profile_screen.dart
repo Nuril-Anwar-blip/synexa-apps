@@ -16,6 +16,7 @@ import '../../providers/language_provider.dart';
 import '../../auth/login_screen.dart';
 import '../pairing_scanner/pairing_scanner_screen.dart';
 import '../settings/settings_screen.dart';
+import '../notifications/notifications_screen.dart';
 import '../../utils/app_route_transitions.dart';
 
 
@@ -380,7 +381,30 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ),
                             ),
                             const SizedBox(height: 12),
-                            // Settings Button
+                            _buildActionButton(
+                              icon: Icons.notifications_rounded,
+                              title: lang.translate({
+                                'id': 'Notifikasi',
+                                'en': 'Notifications',
+                                'ms': 'Pemberitahuan',
+                              }),
+                              subtitle: lang.translate({
+                                'id': 'Riwayat pengingat & pesan sistem',
+                                'en': 'Reminder history & system messages',
+                                'ms': 'Sejarah peringatan & mesej sistem',
+                              }),
+                              gradient: [
+                                Colors.orange.shade400,
+                                Colors.deepOrange.shade400,
+                              ],
+                              onTap: () => Navigator.push(
+                                context,
+                                AppRouteTransitions.fadeSlide(
+                                  const NotificationsScreen(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
                             _buildActionButton(
                               icon: Icons.settings_rounded,
                               title: lang.translate({

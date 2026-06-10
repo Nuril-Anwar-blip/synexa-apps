@@ -925,13 +925,16 @@ class _CommunityScreenState extends State<CommunityScreen>
   }
 
   Future<void> _toggleLike(Post post) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return;
+    final profileId = await UserProfileHelper.patientProfileId();
+    if (profileId == null) return;
     final isLiked = post.userHasLiked;
     _updatePost(post.id, (cur) => cur.copyWith(userHasLiked: !isLiked, likeCount: (cur.likeCount + (isLiked ? -1 : 1)).clamp(0, 1 << 30)));
     try {
-      if (isLiked) await _supabase.from('likes').delete().match({'post_id': post.id, 'user_id': user.id});
-      else await _supabase.from('likes').insert({'post_id': post.id, 'user_id': user.id});
+      if (isLiked) {
+        await _supabase.from('likes').delete().match({'post_id': post.id, 'user_id': profileId});
+      } else {
+        await _supabase.from('likes').insert({'post_id': post.id, 'user_id': profileId});
+      }
     } catch (e) {
       _updatePost(post.id, (_) => post);
     }

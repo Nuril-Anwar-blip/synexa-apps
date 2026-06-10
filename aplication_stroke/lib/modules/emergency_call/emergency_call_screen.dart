@@ -468,10 +468,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-// Uncomment saat integrasi:
-// import 'package:supabase_flutter/supabase_flutter.dart';
-// import 'package:geolocator/geolocator.dart';
-// import 'package:url_launcher/url_launcher.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../utils/user_profile_helper.dart';
 // import 'package:http/http.dart' as http;
 // import '../../providers/theme_provider.dart';
 // import '../../providers/language_provider.dart';
@@ -546,19 +545,38 @@ class _EmergencyCallScreenV2State extends State<EmergencyCallScreenV2>
     });
   }
 
-  void _executeEmergency() {
-    // Di app nyata: panggil RS terdekat & kontak keluarga
-    // await launchUrl(Uri.parse('tel:119'));
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted && !_cancelled) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('📞 Menghubungi bantuan darurat...'),
-            backgroundColor: Colors.red,
-          ),
-        );
+  Future<void> _executeEmergency() async {
+    try {
+      await launchUrl(Uri.parse('tel:119'));
+      final patientId = await UserProfileHelper.patientProfileId();
+      if (patientId != null) {
+        final profile = await Supabase.instance.client
+            .from('users')
+            .select('emergency_contact_phone')
+            .eq('id', patientId)
+            .maybeSingle();
+        final familyPhone =
+            profile?['emergency_contact_phone']?.toString().trim();
+        if (familyPhone != null && familyPhone.isNotEmpty) {
+          await launchUrl(Uri.parse('tel:${familyPhone.replaceAll(' ', '')}'));
+        }
+        await Supabase.instance.client.from('emergency_logs').insert({
+          'user_id': patientId,
+          'event_type': 'sos',
+          'latitude': 0,
+          'longitude': 0,
+          'notes': 'Emergency SOS triggered from app',
+        });
       }
-    });
+    } catch (_) {}
+    if (mounted && !_cancelled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('📞 Menghubungi bantuan darurat...'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _cancel() {

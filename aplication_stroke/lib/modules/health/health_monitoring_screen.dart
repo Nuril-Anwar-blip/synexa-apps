@@ -218,12 +218,11 @@ import 'package:provider/provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/language_provider.dart';
 
-// ── Uncomment saat integrasi dengan app nyata ──────────────────────────────
-// import 'package:supabase_flutter/supabase_flutter.dart';
-// import '../../providers/theme_provider.dart';
-// import '../../providers/language_provider.dart';
-// import '../../../models/health_log_model.dart';
-// import '../../../services/remote/health_service.dart';
+import '../../providers/theme_provider.dart';
+import '../../providers/language_provider.dart';
+import '../../../models/health_log_model.dart';
+import '../../../services/remote/health_service.dart';
+import '../../../utils/user_profile_helper.dart';
 
 // ── Mock model ─────────────────────────────────────────────────────────────
 class HealthLogV2 {
@@ -259,6 +258,10 @@ class HealthMonitoringScreenV2 extends StatefulWidget {
 
 class _HealthMonitoringScreenV2State extends State<HealthMonitoringScreenV2>
     with SingleTickerProviderStateMixin {
+  final _healthService = HealthService();
+  String? _patientId;
+  double? _heightCm;
+  bool _loading = true;
   List<HealthLogV2> _bpLogs = [];
   List<HealthLogV2> _bsLogs = [];
   List<HealthLogV2> _weightLogs = [];
@@ -268,6 +271,55 @@ class _HealthMonitoringScreenV2State extends State<HealthMonitoringScreenV2>
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 3, vsync: this);
+    _loadLogs();
+  }
+
+  Future<void> _loadLogs() async {
+    setState(() => _loading = true);
+    try {
+      _patientId ??= await UserProfileHelper.patientProfileId();
+      if (_patientId == null) return;
+      _heightCm = await _healthService.getUserHeightCm(_patientId!);
+      final bp = await _healthService.getBloodPressureLogs(_patientId!);
+      final bs = await _healthService.getBloodSugarLogs(_patientId!);
+      final wt = await _healthService.getWeightLogs(_patientId!);
+      if (!mounted) return;
+      setState(() {
+        _bpLogs = bp
+            .map(
+              (l) => HealthLogV2(
+                logType: 'blood_pressure',
+                systolic: l.systolicBp,
+                diastolic: l.diastolicBp,
+                note: l.notes,
+                recordedAt: l.logDate,
+              ),
+            )
+            .toList();
+        _bsLogs = bs
+            .map(
+              (l) => HealthLogV2(
+                logType: 'blood_sugar',
+                numeric: l.bloodSugar,
+                note: l.notes,
+                recordedAt: l.logDate,
+              ),
+            )
+            .toList();
+        _weightLogs = wt
+            .map(
+              (l) => HealthLogV2(
+                logType: 'weight',
+                numeric: l.weightKg,
+                note: l.notes,
+                recordedAt: l.logDate,
+              ),
+            )
+            .toList();
+      });
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -426,53 +478,42 @@ class _HealthMonitoringScreenV2State extends State<HealthMonitoringScreenV2>
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton.icon(
-                  onPressed: () {
+                  onPressed: () async {
                     HapticFeedback.mediumImpact();
-                    if (type == 'blood_pressure') {
-                      final s = int.tryParse(c1.text) ?? 0;
-                      final d = int.tryParse(c2.text) ?? 0;
-                      if (s > 0 && d > 0) {
-                        setState(
-                          () => _bpLogs.insert(
-                            0,
-                            HealthLogV2(
-                              logType: type,
-                              systolic: s,
-                              diastolic: d,
-                              note: noteCtrl.text,
-                              recordedAt: DateTime.now(),
+                    if (_patientId == null) return;
+                    try {
+                      if (type == 'blood_pressure') {
+                        final s = int.tryParse(c1.text) ?? 0;
+                        final d = int.tryParse(c2.text) ?? 0;
+                        if (s > 0 && d > 0) {
+                          await _healthService.saveHealthLog(
+                            HealthLog(
+                              userId: _patientId!,
+                              logDate: DateTime.now(),
+                              systolicBp: s,
+                              diastolicBp: d,
+                              notes: noteCtrl.text,
                             ),
-                          ),
-                        );
+                          );
+                        }
+                      } else {
+                        final v = double.tryParse(c1.text) ?? 0;
+                        if (v > 0) {
+                          await _healthService.saveHealthLog(
+                            HealthLog(
+                              userId: _patientId!,
+                              logDate: DateTime.now(),
+                              bloodSugar:
+                                  type == 'blood_sugar' ? v : null,
+                              weightKg: type == 'weight' ? v : null,
+                              notes: noteCtrl.text,
+                            ),
+                          );
+                        }
                       }
-                    } else {
-                      final v = double.tryParse(c1.text) ?? 0;
-                      if (v > 0) {
-                        setState(() {
-                          if (type == 'blood_sugar') {
-                            _bsLogs.insert(
-                              0,
-                              HealthLogV2(
-                                logType: type,
-                                numeric: v,
-                                note: noteCtrl.text,
-                                recordedAt: DateTime.now(),
-                              ),
-                            );
-                          } else {
-                            _weightLogs.insert(
-                              0,
-                              HealthLogV2(
-                                logType: type,
-                                numeric: v,
-                                note: noteCtrl.text,
-                                recordedAt: DateTime.now(),
-                              ),
-                            );
-                          }
-                        });
-                      }
-                    }
+                      await _loadLogs();
+                    } catch (_) {}
+                    if (!context.mounted) return;
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -854,6 +895,7 @@ class _HealthMonitoringScreenV2State extends State<HealthMonitoringScreenV2>
           if (_weightLogs.isNotEmpty)
             _BMICard(
               weight: _weightLogs.first.numeric ?? 0,
+              heightCm: _heightCm ?? 165,
               isDark: _isDark,
               fs: _fs,
             ),
@@ -1252,17 +1294,19 @@ class _RangeInfoCard extends StatelessWidget {
 class _BMICard extends StatelessWidget {
   const _BMICard({
     required this.weight,
+    required this.heightCm,
     required this.isDark,
     required this.fs,
   });
   final double weight;
+  final double heightCm;
   final bool isDark;
   final double fs;
 
   @override
   Widget build(BuildContext context) {
-    // Asumsi tinggi 165cm untuk preview
-    final bmi = weight / (1.65 * 1.65);
+    final heightM = (heightCm > 0 ? heightCm : 165) / 100;
+    final bmi = weight / (heightM * heightM);
     final label = bmi < 18.5
         ? 'Kurus'
         : bmi < 25
@@ -1347,7 +1391,7 @@ class _BMICard extends StatelessWidget {
                   ],
                 ),
                 Text(
-                  'Berdasarkan berat ${weight}kg, tinggi 165cm',
+                  'Berdasarkan berat ${weight}kg, tinggi ${heightCm > 0 ? heightCm.toStringAsFixed(0) : '165'}cm',
                   style: TextStyle(
                     fontSize: 10 * fs,
                     color: isDark ? Colors.white38 : Colors.black54,

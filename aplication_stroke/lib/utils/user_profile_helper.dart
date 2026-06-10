@@ -28,11 +28,26 @@ class UserProfileHelper {
     return row?['id']?.toString();
   }
 
-  /// ID profil untuk chat: pasien dari `users`, apoteker dari `pharmacists`.
+  static Future<String?> doctorProfileId() async {
+    final authId = _client.auth.currentUser?.id;
+    if (authId == null) return null;
+    final row = await _client
+        .from('doctors')
+        .select('id')
+        .eq('auth_id', authId)
+        .maybeSingle();
+    return row?['id']?.toString();
+  }
+
+  /// ID profil untuk chat: pasien / apoteker / dokter.
   static Future<({String id, String role})?> chatProfile() async {
     final pharmId = await pharmacistProfileId();
     if (pharmId != null) {
       return (id: pharmId, role: 'pharmacist');
+    }
+    final doctorId = await doctorProfileId();
+    if (doctorId != null) {
+      return (id: doctorId, role: 'doctor');
     }
     final patientId = await patientProfileId();
     if (patientId != null) {

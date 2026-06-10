@@ -41,6 +41,7 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -64,6 +65,8 @@ import '../../emergency_location/emergency_location_screen.dart';
 import '../../emergency_call/emergency_call_screen.dart';
 import '../../exercise/exercise_screen.dart';
 import '../../community/community_screen.dart';
+import '../../notifications/notifications_screen.dart';
+import '../../../services/remote/notification_inbox_service.dart';
 
 // Import Modular Components & Models
 import '../../../models/emergency_contact_model.dart';
@@ -105,6 +108,7 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
   List<StaffMemberStatus> _staffMembers = [];
   List<EmergencyContactModel> _emergencyContacts = [];
   bool _dashboardLoading = true;
+  int _unreadNotifications = 0;
 
   @override
   void initState() {
@@ -119,6 +123,22 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     _init();
+    _loadUnreadNotifications();
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final count = await NotificationInboxService.instance.unreadCount();
+      if (mounted) setState(() => _unreadNotifications = count);
+    } catch (_) {}
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.push(
+      context,
+      AppRouteTransitions.fadeSlide(const NotificationsScreen()),
+    );
+    await _loadUnreadNotifications();
   }
 
   Future<void> _init() async {
@@ -504,7 +524,54 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
                       ],
                     ),
                   ),
-                  // Quick settings button
+                  GestureDetector(
+                    onTap: _openNotifications,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.notifications_outlined,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        if (_unreadNotifications > 0)
+                          Positioned(
+                            right: -2,
+                            top: -2,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 16,
+                                minHeight: 16,
+                              ),
+                              child: Text(
+                                _unreadNotifications > 9
+                                    ? '9+'
+                                    : '$_unreadNotifications',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => QuickSettingsSheet.show(context),
                     child: Container(
@@ -1794,15 +1861,12 @@ class _EnhancedHomeTabState extends State<EnhancedHomeTab>
                     ),
                   ),
                   ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            '${lang.translate({'id': 'Memanggil', 'en': 'Calling', 'ms': 'Memanggil'})}: ${contact.phoneNumber}',
-                          ),
-                        ),
-                      );
+                      final phone = contact.phoneNumber.replaceAll(' ', '');
+                      if (phone.isNotEmpty) {
+                        await launchUrl(Uri.parse('tel:$phone'));
+                      }
                     },
                     child: Text(
                       lang.translate({

@@ -4,31 +4,55 @@ import '../../models/health_log_model.dart';
 class HealthService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  /// Mencatat log kesehatan baru (Tensi, Gula Darah, atau Berat Badan).
   Future<void> saveHealthLog(HealthLog log) async {
     await _supabase.from('health_logs').insert(log.toMap());
   }
 
-  /// Mengambil riwayat log kesehatan pengguna berdasarkan tipe.
-  Future<List<HealthLog>> getHealthLogs(String userId, String logType) async {
+  Future<List<HealthLog>> getBloodPressureLogs(String userId) async {
     final response = await _supabase
         .from('health_logs')
         .select()
         .eq('user_id', userId)
-        .eq('log_type', logType)
-        .order('recorded_at', ascending: false);
-    
+        .not('systolic_bp', 'is', null)
+        .order('log_date', ascending: false)
+        .limit(30);
     return (response as List)
         .map((l) => HealthLog.fromMap(l as Map<String, dynamic>))
         .toList();
   }
 
-  /// Mengambil data master obat untuk dropdown/autocomplete di UI.
-  Future<List<Map<String, dynamic>>> getMedicationMaster() async {
+  Future<List<HealthLog>> getBloodSugarLogs(String userId) async {
     final response = await _supabase
-        .from('medication_master')
+        .from('health_logs')
         .select()
-        .order('name');
-    return List<Map<String, dynamic>>.from(response);
+        .eq('user_id', userId)
+        .not('blood_sugar', 'is', null)
+        .order('log_date', ascending: false)
+        .limit(30);
+    return (response as List)
+        .map((l) => HealthLog.fromMap(l as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<HealthLog>> getWeightLogs(String userId) async {
+    final response = await _supabase
+        .from('health_logs')
+        .select()
+        .eq('user_id', userId)
+        .not('weight_kg', 'is', null)
+        .order('log_date', ascending: false)
+        .limit(30);
+    return (response as List)
+        .map((l) => HealthLog.fromMap(l as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<double?> getUserHeightCm(String userId) async {
+    final row = await _supabase
+        .from('users')
+        .select('height_cm')
+        .eq('id', userId)
+        .maybeSingle();
+    return (row?['height_cm'] as num?)?.toDouble();
   }
 }

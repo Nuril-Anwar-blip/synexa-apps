@@ -1,39 +1,42 @@
 class HealthLog {
   final String? id;
   final String userId;
-  final String logType; // blood_pressure, blood_sugar, weight
-  final int? valueSystolic;
-  final int? valueDiastolic;
-  final double? valueNumeric;
-  final String? note;
-  final DateTime recordedAt;
+  final DateTime logDate;
+  final int? systolicBp;
+  final int? diastolicBp;
+  final double? bloodSugar;
+  final double? weightKg;
+  final String? notes;
 
   HealthLog({
     this.id,
     required this.userId,
-    required this.logType,
-    this.valueSystolic,
-    this.valueDiastolic,
-    this.valueNumeric,
-    this.note,
-    required this.recordedAt,
+    required this.logDate,
+    this.systolicBp,
+    this.diastolicBp,
+    this.bloodSugar,
+    this.weightKg,
+    this.notes,
   });
+
+  String get logType {
+    if (systolicBp != null || diastolicBp != null) return 'blood_pressure';
+    if (bloodSugar != null) return 'blood_sugar';
+    return 'weight';
+  }
 
   factory HealthLog.fromMap(Map<String, dynamic> map) {
     return HealthLog(
-      id: map['id'] as String?,
-      userId: map['user_id'] as String,
-      logType: map['log_type'] as String,
-      // Map systolic/diastolic from value_text if BP
-      valueSystolic: map['log_type'] == 'blood_pressure' && map['value_text'] != null
-          ? int.tryParse(map['value_text'].split('/')[0])
-          : null,
-      valueDiastolic: map['log_type'] == 'blood_pressure' && map['value_text'] != null && map['value_text'].contains('/')
-          ? int.tryParse(map['value_text'].split('/')[1])
-          : null,
-      valueNumeric: (map['value_numeric'] as num?)?.toDouble(),
-      note: map['note'] as String?,
-      recordedAt: DateTime.parse(map['recorded_at']),
+      id: map['id']?.toString(),
+      userId: map['user_id'].toString(),
+      logDate: DateTime.tryParse(map['log_date']?.toString() ?? '') ??
+          DateTime.tryParse(map['created_at']?.toString() ?? '') ??
+          DateTime.now(),
+      systolicBp: (map['systolic_bp'] as num?)?.toInt(),
+      diastolicBp: (map['diastolic_bp'] as num?)?.toInt(),
+      bloodSugar: (map['blood_sugar'] as num?)?.toDouble(),
+      weightKg: (map['weight_kg'] as num?)?.toDouble(),
+      notes: map['notes']?.toString(),
     );
   }
 
@@ -41,11 +44,12 @@ class HealthLog {
     return {
       if (id != null) 'id': id,
       'user_id': userId,
-      'log_type': logType,
-      'value_numeric': valueNumeric,
-      'value_text': logType == 'blood_pressure' ? '$valueSystolic/$valueDiastolic' : null,
-      'note': note,
-      'recorded_at': recordedAt.toIso8601String(),
+      'log_date': logDate.toIso8601String().split('T').first,
+      if (systolicBp != null) 'systolic_bp': systolicBp,
+      if (diastolicBp != null) 'diastolic_bp': diastolicBp,
+      if (bloodSugar != null) 'blood_sugar': bloodSugar,
+      if (weightKg != null) 'weight_kg': weightKg,
+      if (notes != null && notes!.isNotEmpty) 'notes': notes,
     };
   }
 }

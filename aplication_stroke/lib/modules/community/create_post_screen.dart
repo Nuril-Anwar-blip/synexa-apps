@@ -129,7 +129,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       if (!mounted) return;
       final msg = e.toString().replaceFirst('Exception: ', '');
       final friendly = msg.contains('Bucket not found')
-          ? 'Bucket storage belum dibuat. Jalankan smart_stroke_storage_setup.sql di Supabase.'
+          ? 'Bucket storage belum dibuat. Jalankan sql/smart_stroke_storage_setup.sql di Supabase.'
           : 'Gagal mengirim postingan: $msg';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

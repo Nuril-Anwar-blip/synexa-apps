@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '/models/post_model.dart';
+import '../../utils/user_profile_helper.dart';
 import 'widgets/post_card.dart';
 
 /// Model sederhana untuk menampilkan komentar di UI.
@@ -87,8 +88,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final content = _commentController.text.trim();
     if (content.isEmpty || _isSending) return;
 
-    final user = _supabase.auth.currentUser;
-    if (user == null) {
+    final profileId = await UserProfileHelper.patientProfileId();
+    if (profileId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Silakan login untuk berkomentar.')),
       );
@@ -99,7 +100,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     try {
       await _supabase.from('comments').insert({
         'post_id': widget.post.id,
-        'user_id': user.id,
+        'user_id': profileId,
         'content': content,
       });
       _commentController.clear();

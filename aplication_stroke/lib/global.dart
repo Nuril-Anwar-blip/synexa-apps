@@ -22,6 +22,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'services/local/notification_service.dart';
+import 'services/remote/push_notification_service.dart';
 
 /**
  * Class `Global` berfungsi sebagai pusat inisialisasi (service locator)
@@ -56,6 +57,8 @@ class Global {
     // Notifikasi hanya diperlukan di app mobile (Android/iOS).
     if (initNotifications) {
       await NotificationService().init();
+      await PushNotificationService.instance.init();
+      await PushNotificationService.instance.syncTokenIfLoggedIn();
     }
   }
 }

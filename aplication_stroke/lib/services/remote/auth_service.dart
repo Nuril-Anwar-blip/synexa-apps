@@ -117,6 +117,66 @@ class AuthService {
     };
   }
 
+  Future<Map<String, dynamic>?> _findDoctorInvitation(String code) async {
+    final trimmed = code.trim();
+    if (trimmed.isEmpty) return null;
+    final variants = <String>{trimmed, trimmed.toUpperCase()};
+    for (final value in variants) {
+      try {
+        final row = await _supabase
+            .from('doctor_invitations')
+            .select(
+              'id, token, email, name, license_number, specialization, hospital_name, is_used, expires_at',
+            )
+            .eq('token', value)
+            .eq('is_used', false)
+            .maybeSingle();
+        if (row != null) return Map<String, dynamic>.from(row as Map);
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Map<String, dynamic> _doctorInsertMap({
+    required String authId,
+    required UserModel user,
+    required String normalizedEmail,
+    Map<String, dynamic>? invitation,
+  }) {
+    return {
+      'auth_id': authId,
+      'email': normalizedEmail,
+      'name': invitation?['name']?.toString().trim().isNotEmpty == true
+          ? invitation!['name'].toString()
+          : user.fullName,
+      'phone': user.phoneNumber,
+      if (invitation?['license_number'] != null)
+        'license_number': invitation!['license_number'],
+      if (invitation?['specialization'] != null)
+        'specialization': invitation!['specialization'],
+      if (invitation?['hospital_name'] != null)
+        'hospital_name': invitation!['hospital_name'],
+      'is_verified': true,
+      'is_active': true,
+    };
+  }
+
+  Future<void> _markDoctorInvitationUsed(
+    Map<String, dynamic>? invitation,
+    String? doctorId,
+  ) async {
+    if (invitation == null) return;
+    final id = invitation['id']?.toString();
+    if (id == null) return;
+    try {
+      await _supabase.from('doctor_invitations').update({
+        'is_used': true,
+        if (doctorId != null) 'used_by': doctorId,
+        'used_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', id);
+    } catch (_) {}
+  }
+
   Future<void> _markPharmacistInvitationUsed(
     Map<String, dynamic>? invitation,
     String? pharmacistId,
@@ -139,33 +199,62 @@ class AuthService {
     required UserModel user,
     required String password,
     String? pharmacistCode,
+    String? doctorCode,
   }) async {
     final isPharmacist =
         pharmacistCode != null && pharmacistCode.trim().isNotEmpty;
-    final role = isPharmacist ? 'apoteker' : 'pasien';
+    final isDoctor = doctorCode != null && doctorCode.trim().isNotEmpty;
+    if (isPharmacist && isDoctor) {
+      throw Exception('Hanya satu kode undangan yang boleh digunakan.');
+    }
+    final role = isDoctor ? 'dokter' : (isPharmacist ? 'apoteker' : 'pasien');
 
     try {
-      Map<String, dynamic>? invitation;
-      final String? trimmedCode = pharmacistCode?.trim();
+      Map<String, dynamic>? pharmInvitation;
+      Map<String, dynamic>? doctorInvitation;
+      final String? trimmedPharmCode = pharmacistCode?.trim();
+      final String? trimmedDoctorCode = doctorCode?.trim();
 
-      if (isPharmacist && trimmedCode != null) {
-        invitation = await _findPharmacistInvitation(trimmedCode);
-        if (invitation == null) {
+      if (isPharmacist && trimmedPharmCode != null) {
+        pharmInvitation = await _findPharmacistInvitation(trimmedPharmCode);
+        if (pharmInvitation == null) {
           throw Exception(
             'Kode registrasi apoteker tidak valid atau sudah digunakan.',
           );
         }
       }
 
+      if (isDoctor && trimmedDoctorCode != null) {
+        doctorInvitation = await _findDoctorInvitation(trimmedDoctorCode);
+        if (doctorInvitation == null) {
+          throw Exception(
+            'Kode registrasi dokter tidak valid atau sudah digunakan.',
+          );
+        }
+      }
+
       final normalizedEmail = _normalizeEmail(user.email);
 
-      if (isPharmacist && invitation != null) {
-        final inviteEmail = invitation['email']?.toString().trim().toLowerCase();
+      if (isPharmacist && pharmInvitation != null) {
+        final inviteEmail =
+            pharmInvitation['email']?.toString().trim().toLowerCase();
         if (inviteEmail != null &&
             inviteEmail.isNotEmpty &&
             inviteEmail != normalizedEmail) {
           throw Exception(
             'Email harus sama dengan undangan apoteker ($inviteEmail).',
+          );
+        }
+      }
+
+      if (isDoctor && doctorInvitation != null) {
+        final inviteEmail =
+            doctorInvitation['email']?.toString().trim().toLowerCase();
+        if (inviteEmail != null &&
+            inviteEmail.isNotEmpty &&
+            inviteEmail != normalizedEmail) {
+          throw Exception(
+            'Email harus sama dengan undangan dokter ($inviteEmail).',
           );
         }
       }
@@ -185,7 +274,7 @@ class AuthService {
               authId: authId,
               user: user,
               normalizedEmail: normalizedEmail,
-              invitation: invitation,
+              invitation: pharmInvitation,
             );
             final inserted = await _supabase
                 .from('pharmacists')
@@ -193,7 +282,23 @@ class AuthService {
                 .select('id')
                 .single();
             await _markPharmacistInvitationUsed(
-              invitation,
+              pharmInvitation,
+              inserted['id']?.toString(),
+            );
+          } else if (isDoctor) {
+            final doctorData = _doctorInsertMap(
+              authId: authId,
+              user: user,
+              normalizedEmail: normalizedEmail,
+              invitation: doctorInvitation,
+            );
+            final inserted = await _supabase
+                .from('doctors')
+                .insert(doctorData)
+                .select('id')
+                .single();
+            await _markDoctorInvitationUsed(
+              doctorInvitation,
               inserted['id']?.toString(),
             );
           } else {
@@ -211,9 +316,22 @@ class AuthService {
                     authId: authId,
                     user: user,
                     normalizedEmail: normalizedEmail,
-                    invitation: invitation,
+                    invitation: pharmInvitation,
                   ),
-                  if (invitation != null) 'invitation_id': invitation['id'],
+                  if (pharmInvitation != null)
+                    'invitation_id': pharmInvitation['id'],
+                }
+              : isDoctor
+              ? {
+                  'profile_table': 'doctors',
+                  ..._doctorInsertMap(
+                    authId: authId,
+                    user: user,
+                    normalizedEmail: normalizedEmail,
+                    invitation: doctorInvitation,
+                  ),
+                  if (doctorInvitation != null)
+                    'invitation_id': doctorInvitation['id'],
                 }
               : {
                   'profile_table': 'users',
@@ -293,6 +411,26 @@ class AuthService {
           final invitationId = pendingMap['invitation_id']?.toString();
           if (invitationId != null) {
             await _markPharmacistInvitationUsed(
+              {'id': invitationId},
+              inserted['id']?.toString(),
+            );
+          }
+        }
+      } else if (table == 'doctors') {
+        final existing = await _supabase
+            .from('doctors')
+            .select('id')
+            .eq('auth_id', currentUser.id)
+            .maybeSingle();
+        if (existing == null) {
+          final inserted = await _supabase
+              .from('doctors')
+              .insert(data)
+              .select('id')
+              .single();
+          final invitationId = pendingMap['invitation_id']?.toString();
+          if (invitationId != null) {
+            await _markDoctorInvitationUsed(
               {'id': invitationId},
               inserted['id']?.toString(),
             );

@@ -228,6 +228,7 @@ import 'package:provider/provider.dart';
 // Uncomment saat integrasi:
 import '../../../models/rehab_models.dart';
 import '../../../services/remote/rehab_service.dart';
+import '../../../utils/user_profile_helper.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/language_provider.dart';
 
@@ -371,7 +372,7 @@ class _ExerciseSessionScreenV2State extends State<ExerciseSessionScreen>
     });
   }
 
-  void _finish() {
+  Future<void> _finish() async {
     HapticFeedback.heavyImpact();
     _pulseCtrl.stop();
     setState(() {
@@ -381,8 +382,14 @@ class _ExerciseSessionScreenV2State extends State<ExerciseSessionScreen>
     });
     _completeCtrl.forward();
 
-    // Di app nyata: log ke Supabase
-    // await rehabService.logExerciseCompletion(...)
+    final patientId = await UserProfileHelper.patientProfileId();
+    if (patientId != null) {
+      await RehabService().logExerciseCompletion(
+        userId: patientId,
+        exerciseId: widget.exercise.id,
+        durationActualSeconds: _totalSeconds,
+      );
+    }
   }
 
   void _abort() {

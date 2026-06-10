@@ -662,10 +662,9 @@ import '../../providers/theme_provider.dart';
 import '../../providers/language_provider.dart';
 import 'package:provider/provider.dart';
 
-// Uncomment when integrated with real app:
-// import 'package:supabase_flutter/supabase_flutter.dart';
-// import '../../providers/theme_provider.dart';
-// import '../../providers/language_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/remote/rehab_service.dart';
+import '../../utils/user_profile_helper.dart';
 
 // ── Mock providers for standalone preview ──────────────────────────────────
 // Remove these when integrating with real app
@@ -779,11 +778,13 @@ class ExerciseScreenV2 extends StatefulWidget {
 
 class _ExerciseScreenV2State extends State<ExerciseScreenV2>
     with SingleTickerProviderStateMixin {
+  final _rehab = RehabService();
+  String? _patientId;
+  bool _loading = true;
   List<ExerciseItem> _exercises = [];
   String _selectedLevel = 'Semua';
   late TabController _tabController;
 
-  // 7-day tracking — weekday index → completed count
   Map<int, int> _weekProgress = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0};
   int _streakDays = 0;
 
@@ -791,9 +792,50 @@ class _ExerciseScreenV2State extends State<ExerciseScreenV2>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _exercises =
-        _sampleExercises; // Mutate original memory list, or use shared preferences
-    _loadProgress();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    _patientId = await UserProfileHelper.patientProfileId();
+    await Future.wait([_loadExercises(), _loadProgress()]);
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _loadExercises() async {
+    if (_patientId == null) return;
+    try {
+      final progress = await _rehab.getUserProgress(_patientId!);
+      final phase = progress?.currentPhaseNumber ?? 1;
+      final rows = await _rehab.getExercises(phase);
+      final today = DateTime.now().toIso8601String().split('T').first;
+      final logs = await Supabase.instance.client
+          .from('rehab_exercise_logs')
+          .select('exercise_id')
+          .eq('user_id', _patientId!)
+          .eq('session_date', today)
+          .eq('is_completed', true);
+      final doneIds = (logs as List)
+          .map((e) => e['exercise_id']?.toString())
+          .whereType<String>()
+          .toSet();
+      _exercises = rows
+          .map(
+            (e) => ExerciseItem(
+              id: e.id,
+              name: e.name,
+              phase: 'Fase ${e.phaseNumber ?? phase}',
+              durationMinutes: (e.durationSeconds / 60).ceil().clamp(1, 60),
+              level: 'Fase ${e.phaseNumber}',
+              desc: e.durationText,
+              steps: e.instructions,
+              equipment: 'Tanpa alat',
+              isCompleted: doneIds.contains(e.id),
+            ),
+          )
+          .toList();
+    } catch (_) {
+      _exercises = [];
+    }
   }
 
   Future<void> _loadProgress() async {
@@ -900,9 +942,23 @@ class _ExerciseScreenV2State extends State<ExerciseScreenV2>
       builder: (_) => _TimerDialog(
         exercise: ex,
         isDark: _isDark,
-        onComplete: () {
+        onComplete: () async {
           Navigator.pop(context);
-          setState(() => ex.isCompleted = true);
+          if (_patientId != null) {
+            await _rehab.logExerciseCompletion(
+              userId: _patientId!,
+              exerciseId: ex.id,
+              durationActualSeconds: ex.durationMinutes * 60,
+            );
+          }
+          final today = DateTime.now().weekday % 7;
+          setState(() {
+            ex.isCompleted = true;
+            _weekProgress[today] = (_weekProgress[today] ?? 0) + 1;
+            _streakDays += 1;
+          });
+          await _saveProgress();
+          if (!context.mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('✅ ${ex.name} selesai!'),

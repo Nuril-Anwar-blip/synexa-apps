@@ -1,4 +1,6 @@
 import 'package:aplication_stroke/modules/consultation/consultation_screen.dart';
+import 'package:aplication_stroke/utils/app_route_transitions.dart';
+import 'package:aplication_stroke/utils/user_profile_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -19,11 +21,20 @@ class ChatHelper {
     }
 
     try {
-      // Cek apakah room sudah ada
+      final patientId = await UserProfileHelper.patientProfileId();
+      if (patientId == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profil pasien tidak ditemukan')),
+          );
+        }
+        return;
+      }
+
       final existing = await supabase
           .from('chat_rooms')
           .select('id')
-          .eq('patient_id', currentUser.id)
+          .eq('patient_id', patientId)
           .eq('pharmacist_id', pharmacistId)
           .maybeSingle();
 
@@ -35,7 +46,7 @@ class ChatHelper {
         final newRoom = await supabase
             .from('chat_rooms')
             .insert({
-              'patient_id': currentUser.id,
+              'patient_id': patientId,
               'pharmacist_id': pharmacistId,
             })
             .select('id')
@@ -47,8 +58,8 @@ class ChatHelper {
       if (context.mounted) {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => ConsultationScreen(
+          AppRouteTransitions.fadeSlide(
+            ConsultationScreen(
               roomId: roomId,
               recipientId: pharmacistId,
               recipientName: pharmacistName,

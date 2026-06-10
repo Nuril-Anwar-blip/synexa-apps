@@ -328,6 +328,7 @@ import '../../providers/theme_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../models/education_model.dart';
 import '../../services/remote/education_service.dart';
+import 'education_detail_screen.dart';
 
 class StrokeEducationScreen extends StatefulWidget {
   const StrokeEducationScreen({super.key});
@@ -607,17 +608,32 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
     ),
   );
 
+  List<EducationContent> _forCategories(List<String> categories) {
+    return _dbContent
+        .where((c) => c.category != null && categories.contains(c.category))
+        .toList();
+  }
+
+  Widget _categorySection(String title, List<String> categories, bool isDark) {
+    final items = _forCategories(categories);
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(title, isDark),
+        const SizedBox(height: 8),
+        ...items.map((c) => _dbContentCard(c, isDark)),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
   // ── Tab 1: Dasar Stroke ────────────────────────────────────────────────────
   Widget _basicStrokeTab(bool isDark) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (_dbContent.isNotEmpty) ...[
-          _sectionTitle('📚 Modul Terbaru', isDark),
-          const SizedBox(height: 8),
-          ..._dbContent.map((c) => _dbContentCard(c, isDark)),
-          const SizedBox(height: 8),
-        ],
+        _categorySection('📚 Modul dari Database', ['lainnya', 'obat'], isDark),
         _sectionTitle('🧠 Apa itu Stroke?', isDark),
         const SizedBox(height: 8),
         _infoCard(
@@ -668,6 +684,7 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        _categorySection('📖 Artikel Penanganan', ['penanganan'], isDark),
         _fastSection(isDark),
         const SizedBox(height: 16),
         _sectionTitle('Gejala Lainnya yang Harus Diwaspadai', isDark),
@@ -962,6 +979,7 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        _categorySection('📖 Artikel Pencegahan', ['pencegahan'], isDark),
         _sectionTitle('⚠️ Faktor Risiko Stroke', isDark),
         const SizedBox(height: 8),
         Container(
@@ -1211,6 +1229,11 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        _categorySection(
+          '📖 Artikel Pemulihan',
+          ['rehabilitasi', 'olahraga', 'nutrisi'],
+          isDark,
+        ),
         _sectionTitle('Fase Pemulihan Stroke', isDark),
         const SizedBox(height: 8),
         ...phases.map(
@@ -1553,93 +1576,145 @@ class _StrokeEducationScreenState extends State<StrokeEducationScreen>
   }
 
   Widget _dbContentCard(EducationContent content, bool isDark) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A2636) : Colors.white,
+    final preview = (content.summary?.isNotEmpty ?? false)
+        ? content.summary!
+        : content.content;
+    final icon = content.isVideo
+        ? Icons.play_circle_rounded
+        : content.isInfographic
+        ? Icons.image_rounded
+        : Icons.article_rounded;
+
+    return Material(
+      color: isDark ? const Color(0xFF1A2636) : Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => EducationDetailScreen(content: content),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (content.imageUrl != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                content.imageUrl!,
-                height: 150,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const SizedBox(),
+        ),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.blue.withOpacity(0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
-            ),
-          if (content.imageUrl != null) const SizedBox(height: 12),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.article_rounded,
-                  color: Colors.blue,
-                  size: 16,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  content.title,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                ),
-              ),
-              if (content.category != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    content.category!,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.blue,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            content.content,
-            style: TextStyle(
-              fontSize: 13,
-              color: isDark ? Colors.white60 : Colors.black54,
-              height: 1.5,
-            ),
-            maxLines: 4,
-            overflow: TextOverflow.ellipsis,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (content.thumbnailUrl != null &&
+                  content.thumbnailUrl!.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    content.thumbnailUrl!,
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox(),
+                  ),
+                ),
+              if (content.thumbnailUrl != null &&
+                  content.thumbnailUrl!.isNotEmpty)
+                const SizedBox(height: 12),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, color: Colors.blue, size: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      content.title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                  ),
+                  if (content.category != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        content.category!,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.blue,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                preview,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? Colors.white60 : Colors.black54,
+                  height: 1.5,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    Icons.visibility_outlined,
+                    size: 14,
+                    color: Colors.grey.shade500,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${content.viewCount} dibaca',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'Baca selengkapnya',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.red.shade600,
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: Colors.red.shade600,
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

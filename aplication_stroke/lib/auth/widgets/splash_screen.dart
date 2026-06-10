@@ -4,8 +4,10 @@ import 'package:aplication_stroke/modules/admin/admin_mobile_blocked_screen.dart
 import 'package:aplication_stroke/modules/admin/services/admin_service.dart';
 import 'package:aplication_stroke/modules/dashboard/unified_main_screen.dart';
 import 'package:aplication_stroke/modules/pharmacist/apoteker_dashboard_screen.dart';
+import 'package:aplication_stroke/modules/doctor/doctor_dashboard_screen.dart';
 import '../onboarding_screen.dart';
 import '../../utils/app_route_transitions.dart';
+import '../../services/remote/push_notification_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -36,6 +38,8 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     try {
+      await PushNotificationService.instance.syncTokenIfLoggedIn();
+
       final isAdmin = await AdminService().isCurrentUserAdmin();
       if (!mounted) return;
 
@@ -62,6 +66,22 @@ class _SplashScreenState extends State<SplashScreen> {
         Navigator.pushReplacement(
           context,
           AppRouteTransitions.fadeSlide(const ApotekerDashboardScreen()),
+        );
+        return;
+      }
+
+      final doctor = await client
+          .from('doctors')
+          .select('id')
+          .eq('auth_id', uid)
+          .maybeSingle();
+
+      if (!mounted) return;
+
+      if (doctor != null) {
+        Navigator.pushReplacement(
+          context,
+          AppRouteTransitions.fadeSlide(const DoctorDashboardScreen()),
         );
         return;
       }

@@ -1711,7 +1711,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/local/notification_service.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/language_provider.dart';
-import '../../data/mock_medications.dart';
+import '../../services/remote/medication_reminder_repository.dart';
+import '../../utils/user_profile_helper.dart';
 import 'models/medication_reminder.dart';
 import 'models/common_medications.dart';
 import 'widgets/add_medication_dialog.dart';
@@ -1721,6 +1722,10 @@ import 'medication_history_screen.dart';
 // ── Mock data model ────────────────────────────────────────────────────────
 class MedicationV2 {
   String id;
+  String? reminderId;
+  String? logId;
+  String? userMedicationId;
+  DateTime? scheduledAt;
   String name;
   String dose;
   String note;
@@ -1728,8 +1733,8 @@ class MedicationV2 {
   TimeOfDay time;
   String period;
   bool taken;
-  bool isActive; // NEW: can be toggled per-card
-  String alarmSound; // NEW: alarm sound choice
+  bool isActive;
+  String alarmSound;
   int stock;
   int totalStock;
   int frequencyPerDay;
@@ -1737,6 +1742,10 @@ class MedicationV2 {
 
   MedicationV2({
     required this.id,
+    this.reminderId,
+    this.logId,
+    this.userMedicationId,
+    this.scheduledAt,
     required this.name,
     this.category = 'Antiplatelet',
     required this.dose,
@@ -1815,13 +1824,16 @@ class MedicationReminderScreenV2 extends StatefulWidget {
 
 class _MedicationReminderScreenV2State extends State<MedicationReminderScreenV2>
     with SingleTickerProviderStateMixin {
+  final _repo = MedicationReminderRepository.instance;
   List<MedicationV2> _meds = [];
+  String? _patientId;
+  bool _loading = true;
+  String? _errorMessage;
   String _selectedPeriod = 'Semua';
 
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
 
-  // Simulated alarm popup
   Timer? _alarmTimer;
   bool _alarmVisible = false;
   MedicationV2? _alarmMed;
@@ -1829,10 +1841,7 @@ class _MedicationReminderScreenV2State extends State<MedicationReminderScreenV2>
   @override
   void initState() {
     super.initState();
-    _meds = globalSampleMeds;
-    for (final med in _meds) {
-      if (med.isActive) _syncAlarmSchedule(med);
-    }
+    _loadMeds();
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -1861,28 +1870,62 @@ class _MedicationReminderScreenV2State extends State<MedicationReminderScreenV2>
   int get _takenCount => _meds.where((m) => m.taken && m.isActive).length;
   int get _activeCount => _meds.where((m) => m.isActive).length;
 
-  // ── Actions ──────────────────────────────────────────────────────────────
-  void _toggleTaken(MedicationV2 med) {
-    HapticFeedback.lightImpact();
+  Future<void> _loadMeds() async {
     setState(() {
-      med.taken = !med.taken;
-
-      final dVal = double.tryParse(med.dose.split(' ').first) ?? 1.0;
-      if (med.taken) {
-        med.stock = (med.stock - dVal.toInt()).clamp(0, med.totalStock);
-      } else {
-        med.stock = (med.stock + dVal.toInt()).clamp(0, med.totalStock);
-      }
+      _loading = true;
+      _errorMessage = null;
     });
+    try {
+      _patientId ??= await UserProfileHelper.patientProfileId();
+      if (_patientId == null) {
+        setState(() {
+          _errorMessage = 'Profil pasien tidak ditemukan.';
+          _meds = [];
+        });
+        return;
+      }
+      final loaded = await _repo.loadForPatient(_patientId!);
+      if (!mounted) return;
+      setState(() => _meds = loaded);
+      for (final med in _meds) {
+        if (med.isActive) _syncAlarmSchedule(med);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'Gagal memuat pengingat obat.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
-  void _toggleActive(MedicationV2 med) {
+  Future<void> _toggleTaken(MedicationV2 med) async {
+    if (_patientId == null) return;
+    HapticFeedback.lightImpact();
+    try {
+      await _repo.toggleTaken(med, _patientId!);
+      if (!mounted) return;
+      setState(() {});
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal memperbarui status obat')),
+      );
+    }
+  }
+
+  Future<void> _toggleActive(MedicationV2 med) async {
+    if (med.reminderId == null) return;
     HapticFeedback.selectionClick();
-    setState(() {
-      med.isActive = !med.isActive;
-      if (!med.isActive) med.taken = false;
-    });
-    _syncAlarmSchedule(med);
+    final next = !med.isActive;
+    try {
+      await _repo.setActive(med.reminderId!, next);
+      if (!mounted) return;
+      setState(() {
+        med.isActive = next;
+        if (!next) med.taken = false;
+      });
+      _syncAlarmSchedule(med);
+    } catch (_) {}
   }
 
   void _syncAlarmSchedule(MedicationV2 med) {
@@ -1917,9 +1960,14 @@ class _MedicationReminderScreenV2State extends State<MedicationReminderScreenV2>
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              setState(() => _meds.remove(med));
+              if (med.reminderId == null) return;
+              try {
+                await _repo.deleteReminder(med.reminderId!);
+                if (!mounted) return;
+                await _loadMeds();
+              } catch (_) {}
             },
             child: const Text('Hapus'),
           ),
@@ -1936,15 +1984,21 @@ class _MedicationReminderScreenV2State extends State<MedicationReminderScreenV2>
       builder: (_) => _EditMedicationSheet(
         med: med,
         isDark: _isDark,
-        onSave: (updated) {
-          setState(() {
-            med.name = updated.name;
-            med.dose = updated.dose;
-            med.note = updated.note;
-            med.time = updated.time;
-            med.period = updated.period;
-            med.alarmSound = updated.alarmSound;
-          });
+        onSave: (updated) async {
+          if (med.reminderId != null) {
+            await _repo.updateReminder(
+              reminderId: med.reminderId!,
+              medicationName: updated.name,
+              dosage: updated.dose,
+              notes: updated.note,
+              reminderTimes: [
+                '${updated.time.hour.toString().padLeft(2, '0')}:${updated.time.minute.toString().padLeft(2, '0')}',
+              ],
+              soundEnabled: updated.alarmSound != 'silent',
+            );
+            await _loadMeds();
+          }
+          if (!context.mounted) return;
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1963,64 +2017,29 @@ class _MedicationReminderScreenV2State extends State<MedicationReminderScreenV2>
   }
 
   Future<void> _addMed() async {
-    final curUserId = Supabase.instance.client.auth.currentUser?.id ?? '';
+    _patientId ??= await UserProfileHelper.patientProfileId();
+    if (_patientId == null) return;
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => AddMedicationDialog(userId: curUserId),
+      builder: (_) => AddMedicationDialog(userId: _patientId!),
     );
 
     if (result != null) {
-      final name = result['name'] as String;
-      final dose = result['dose'] as String;
-      final note = result['note'] as String;
-      final stockStr = result['stock'] as String?;
-      final times = result['times'] as List<TimeOfDay>;
-      final alarmSnd = result['alarmSound'] as String? ?? 'default';
-
-      final int totalStock = int.tryParse(stockStr ?? '') ?? 0;
-
-      setState(() {
-        for (final t in times) {
-          String period = 'Pagi';
-          if (t.hour >= 18)
-            period = 'Malam';
-          else if (t.hour >= 15)
-            period = 'Sore';
-          else if (t.hour >= 11)
-            period = 'Siang';
-
-          final newMed = MedicationV2(
-            id:
-                DateTime.now().millisecondsSinceEpoch.toString() +
-                t.hour.toString(),
-            name: name,
-            dose: dose,
-            time: t,
-            period: period,
-            note: note,
-            totalStock: totalStock,
-            stock: totalStock,
-            alarmSound: alarmSnd,
-          );
-
-          if (!globalSampleMeds.any((m) => m.id == newMed.id)) {
-            globalSampleMeds.add(newMed);
-          }
-        }
-
-        _meds = globalSampleMeds;
-
-        // Sorting by time
-        _meds.sort((a, b) {
-          int aMin = a.time.hour * 60 + a.time.minute;
-          int bMin = b.time.hour * 60 + b.time.minute;
-          return aMin.compareTo(bMin);
-        });
-      });
-      if (mounted) {
+      try {
+        await _repo.createFromDialog(
+          patientId: _patientId!,
+          name: result['name'] as String,
+          dose: result['dose'] as String? ?? '',
+          note: result['note'] as String? ?? '',
+          times: (result['times'] as List).cast<TimeOfDay>(),
+          stockStr: result['stock'] as String?,
+          alarmSound: result['alarmSound'] as String? ?? 'default',
+        );
+        await _loadMeds();
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Obat $name berhasil ditambahkan!'),
+            content: Text('✅ Obat ${result['name']} berhasil ditambahkan!'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -2028,6 +2047,11 @@ class _MedicationReminderScreenV2State extends State<MedicationReminderScreenV2>
             ),
             margin: const EdgeInsets.all(16),
           ),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menambah obat: $e')),
         );
       }
     }

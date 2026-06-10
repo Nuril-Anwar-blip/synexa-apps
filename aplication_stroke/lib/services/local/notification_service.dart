@@ -179,4 +179,21 @@ class NotificationService {
           : 'Pengingat obat aktif',
     );
   }
+
+  /// Notifikasi instan (FCM foreground / sistem).
+  Future<void> showInstantNotification(String title, String body) async {
+    final androidDetails = AndroidNotificationDetails(
+      _medChannel.id,
+      _medChannel.name,
+      channelDescription: _medChannel.description,
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    await _notifPlugin.show(
+      id: DateTime.now().millisecondsSinceEpoch % 100000,
+      title: title,
+      body: body,
+      notificationDetails: NotificationDetails(android: androidDetails),
+    );
+  }
 }

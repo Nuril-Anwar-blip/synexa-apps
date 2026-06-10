@@ -240,6 +240,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../models/rehab_models.dart';
 import '../../../services/remote/rehab_service.dart';
+import '../../../utils/user_profile_helper.dart';
 import 'exercise_session_screen.dart';
 
 class RehabDashboardScreen extends StatefulWidget {
@@ -252,7 +253,7 @@ class RehabDashboardScreen extends StatefulWidget {
 class _RehabDashboardScreenState extends State<RehabDashboardScreen>
     with SingleTickerProviderStateMixin {
   final RehabService _rehabService = RehabService();
-  final String _userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+  String? _patientId;
 
   bool _isLoading = true;
   List<RehabExercise> _exercises = [];
@@ -276,11 +277,12 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen>
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      if (_userId.isEmpty) {
+      _patientId ??= await UserProfileHelper.patientProfileId();
+      if (_patientId == null) {
         _progress = null;
         _exercises = [];
       } else {
-        _progress = await _rehabService.getUserProgress(_userId);
+        _progress = await _rehabService.getUserProgress(_patientId!);
         if (_progress != null) {
           _currentPhase = await _rehabService.getPhaseDetail(
             _progress!.currentPhaseNumber,
@@ -301,7 +303,8 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen>
   }
 
   Future<void> _startInitialProgram() async {
-    if (_userId.isEmpty) {
+    _patientId ??= await UserProfileHelper.patientProfileId();
+    if (_patientId == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Silakan login terlebih dahulu.')),
@@ -309,7 +312,7 @@ class _RehabDashboardScreenState extends State<RehabDashboardScreen>
       return;
     }
     try {
-      await _rehabService.startInitialProgram(_userId);
+      await _rehabService.startInitialProgram(_patientId!);
       await _loadData();
       if (!mounted) return;
       ScaffoldMessenger.of(

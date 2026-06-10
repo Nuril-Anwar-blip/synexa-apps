@@ -9,6 +9,8 @@ import 'auth_bottom_section.dart';
 import 'password_form_field_with_label.dart';
 import 'text_form_field_with_label.dart';
 import '../register_screen.dart';
+import '../register_doctor_screen.dart';
+import '../register_pharmacist_screen.dart';
 
 /// Form Login — desain baru tanpa perlu scroll
 class LoginForm extends StatefulWidget {
@@ -233,7 +235,39 @@ class _LoginFormState extends State<LoginForm> {
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const RegisterDoctorScreen(),
+                  ),
+                ),
+                child: const Text(
+                  'Daftar sebagai Dokter',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ),
+              Text('|', style: TextStyle(color: Colors.grey.shade400)),
+              TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const RegisterPharmacistScreen(),
+                  ),
+                ),
+                child: const Text(
+                  'Daftar sebagai Apoteker',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
 
           // ── Divider + Social Login ───────────────────────
           const AuthBottomSection(),

@@ -561,64 +561,33 @@ import '../../providers/theme_provider.dart';
 import '../../providers/language_provider.dart';
 import 'package:aplication_stroke/modules/consultation/consultation_screen.dart';
 import '../../services/remote/staff_presence_service.dart';
+import '../../utils/app_route_transitions.dart';
+import '../../utils/user_profile_helper.dart';
 
-// ── Mock data ──────────────────────────────────────────────────────────────
-class _MockConversation {
-  final String id;
-  final String patientName;
-  final String patientInitial;
-  final String lastMessage;
-  final DateTime lastTime;
-  final bool hasUnread;
-  final int unreadCount;
-
-  const _MockConversation({
-    required this.id,
+class PharmacistConversation {
+  const PharmacistConversation({
+    required this.roomId,
+    required this.patientId,
     required this.patientName,
-    required this.patientInitial,
     required this.lastMessage,
     required this.lastTime,
     this.hasUnread = false,
     this.unreadCount = 0,
   });
-}
 
-final _mockConversations = [
-  _MockConversation(
-    id: '1',
-    patientName: 'Budi Santoso',
-    patientInitial: 'B',
-    lastMessage:
-        'Dok, apakah obat Aspirin bisa diminum bersamaan dengan Amlodipine?',
-    lastTime: DateTime.now().subtract(const Duration(minutes: 5)),
-    hasUnread: true,
-    unreadCount: 3,
-  ),
-  _MockConversation(
-    id: '2',
-    patientName: 'Sri Rahayu',
-    patientInitial: 'S',
-    lastMessage: 'Terima kasih atas penjelasannya, apoteker!',
-    lastTime: DateTime.now().subtract(const Duration(hours: 2)),
-    hasUnread: false,
-  ),
-  _MockConversation(
-    id: '3',
-    patientName: 'Hendra Wijaya',
-    patientInitial: 'H',
-    lastMessage: 'Stok obat saya tinggal 3, perlu beli lagi?',
-    lastTime: DateTime.now().subtract(const Duration(hours: 5)),
-    hasUnread: true,
-    unreadCount: 1,
-  ),
-  _MockConversation(
-    id: '4',
-    patientName: 'Dewi Kusuma',
-    patientInitial: 'D',
-    lastMessage: 'Baik, saya akan minum obat setelah makan',
-    lastTime: DateTime.now().subtract(const Duration(days: 1)),
-  ),
-];
+  final String roomId;
+  final String patientId;
+  final String patientName;
+  final String lastMessage;
+  final DateTime lastTime;
+  final bool hasUnread;
+  final int unreadCount;
+
+  String get patientInitial {
+    final trimmed = patientName.trim();
+    return trimmed.isEmpty ? '?' : trimmed.substring(0, 1).toUpperCase();
+  }
+}
 
 // ── Main Screen ────────────────────────────────────────────────────────────
 class ApotekerDashboardScreen extends StatefulWidget {
@@ -631,11 +600,17 @@ class ApotekerDashboardScreen extends StatefulWidget {
 
 class _ApotekerDashboardScreenState extends State<ApotekerDashboardScreen>
     with SingleTickerProviderStateMixin {
+  final _supabase = Supabase.instance.client;
   final _searchCtrl = TextEditingController();
-  List<_MockConversation> _conversations = List.from(_mockConversations);
+  final List<PharmacistConversation> _conversations = [];
   late AnimationController _listAnim;
   late Animation<double> _listFade;
-  bool _isLoading = false;
+  bool _isLoading = true;
+  bool _isRefreshing = false;
+  String? _errorMessage;
+  String? _pharmacistId;
+  RealtimeChannel? _realtimeChannel;
+  Timer? _refreshDebounce;
   int _selectedFilter = 0; // 0=Semua, 1=Belum dibaca
 
   @override
@@ -647,7 +622,8 @@ class _ApotekerDashboardScreenState extends State<ApotekerDashboardScreen>
     );
     _listFade = CurvedAnimation(parent: _listAnim, curve: Curves.easeOut);
     _searchCtrl.addListener(() => setState(() {}));
-    _listAnim.forward();
+    _loadRooms();
+    _setupRealtime();
     StaffPresenceService.instance.startHeartbeat();
   }
 
@@ -655,6 +631,11 @@ class _ApotekerDashboardScreenState extends State<ApotekerDashboardScreen>
   void dispose() {
     _searchCtrl.dispose();
     _listAnim.dispose();
+    _refreshDebounce?.cancel();
+    _realtimeChannel?.unsubscribe();
+    if (_realtimeChannel != null) {
+      _supabase.removeChannel(_realtimeChannel!);
+    }
     StaffPresenceService.instance.stopHeartbeat();
     super.dispose();
   }
@@ -663,7 +644,7 @@ class _ApotekerDashboardScreenState extends State<ApotekerDashboardScreen>
   double get _fs => 1.0;
   String _t(Map<String, String> m) => m['id'] ?? '';
 
-  List<_MockConversation> get _filtered {
+  List<PharmacistConversation> get _filtered {
     var list = _conversations;
     if (_selectedFilter == 1) list = list.where((c) => c.hasUnread).toList();
     final q = _searchCtrl.text.toLowerCase().trim();
@@ -682,40 +663,171 @@ class _ApotekerDashboardScreenState extends State<ApotekerDashboardScreen>
     return '${diff.inDays} hari';
   }
 
-  Future<void> _refresh() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 1));
-    setState(() => _isLoading = false);
-    _listAnim.forward(from: 0);
+  Future<void> _loadRooms({bool showSpinner = true}) async {
+    if (showSpinner) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    } else {
+      setState(() => _isRefreshing = true);
+    }
+    try {
+      _pharmacistId ??= await UserProfileHelper.pharmacistProfileId();
+      if (_pharmacistId == null) {
+        setState(() {
+          _errorMessage = 'Profil apoteker tidak ditemukan.';
+          _isLoading = false;
+          _isRefreshing = false;
+        });
+        return;
+      }
+      final mapped = await _fetchConversations(_pharmacistId!);
+      if (!mounted) return;
+      setState(() {
+        _conversations
+          ..clear()
+          ..addAll(mapped);
+        _errorMessage = null;
+      });
+      _listAnim.forward(from: 0);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'Gagal memuat percakapan.');
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _isRefreshing = false;
+      });
+    }
   }
 
-  void _openChat(_MockConversation conv) {
-    // Di app nyata: navigate ke ConsultationScreen
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Membuka chat dengan ${conv.patientName}'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-    // Mark as read
-    setState(() {
-      final idx = _conversations.indexWhere((c) => c.id == conv.id);
-      if (idx != -1) {
-        _conversations[idx] = _MockConversation(
-          id: conv.id,
-          patientName: conv.patientName,
-          patientInitial: conv.patientInitial,
-          lastMessage: conv.lastMessage,
-          lastTime: conv.lastTime,
-          hasUnread: false,
-        );
-      }
+  Future<List<PharmacistConversation>> _fetchConversations(
+    String pharmacistId,
+  ) async {
+    final rows = await _supabase
+        .from('chat_rooms')
+        .select(
+          'id, patient_id, unread_by_pharmacist, updated_at, created_at',
+        )
+        .eq('pharmacist_id', pharmacistId)
+        .order('updated_at', ascending: false);
+    final roomIds = rows
+        .map((e) => e['id']?.toString())
+        .whereType<String>()
+        .toList();
+    final patientIds = rows
+        .map((e) => e['patient_id']?.toString())
+        .whereType<String>()
+        .toSet()
+        .toList();
+    final latestMessages = await _fetchLatestMessages(roomIds);
+    final patientProfiles = await _fetchPatientProfiles(patientIds);
+
+    final conversations = rows.map((raw) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final roomId = row['id']?.toString() ?? '';
+      final patientId = row['patient_id']?.toString() ?? '';
+      final patient = patientProfiles[patientId] ?? {};
+      final latest = latestMessages[roomId];
+      final unread = (row['unread_by_pharmacist'] as num?)?.toInt() ?? 0;
+      final lastTimeRaw =
+          latest?['created_at'] ?? row['updated_at'] ?? row['created_at'];
+      return PharmacistConversation(
+        roomId: roomId,
+        patientId: patientId,
+        patientName: patient['name']?.toString() ?? 'Pasien',
+        lastMessage: latest?['content']?.toString() ?? 'Belum ada pesan',
+        lastTime: lastTimeRaw != null
+            ? DateTime.parse(lastTimeRaw.toString())
+            : DateTime.now(),
+        hasUnread: unread > 0,
+        unreadCount: unread,
+      );
+    }).toList();
+
+    conversations.sort((a, b) => b.lastTime.compareTo(a.lastTime));
+    return conversations;
+  }
+
+  Future<Map<String, Map<String, dynamic>>> _fetchLatestMessages(
+    List<String> roomIds,
+  ) async {
+    if (roomIds.isEmpty) return {};
+    final rows = await _supabase
+        .from('messages')
+        .select('chat_room_id, content, created_at')
+        .filter('chat_room_id', 'in', roomIds)
+        .order('created_at', ascending: false);
+    final latest = <String, Map<String, dynamic>>{};
+    for (final raw in rows) {
+      final m = Map<String, dynamic>.from(raw as Map);
+      final roomId = m['chat_room_id']?.toString();
+      if (roomId == null || latest.containsKey(roomId)) continue;
+      latest[roomId] = m;
+    }
+    return latest;
+  }
+
+  Future<Map<String, Map<String, dynamic>>> _fetchPatientProfiles(
+    List<String> patientIds,
+  ) async {
+    if (patientIds.isEmpty) return {};
+    final rows = await _supabase
+        .from('users')
+        .select('id, name, profile_picture')
+        .filter('id', 'in', patientIds);
+    final map = <String, Map<String, dynamic>>{};
+    for (final raw in rows) {
+      final m = Map<String, dynamic>.from(raw as Map);
+      final id = m['id']?.toString();
+      if (id != null) map[id] = m;
+    }
+    return map;
+  }
+
+  void _setupRealtime() {
+    _realtimeChannel = _supabase.channel('pharmacist_chat_dashboard')
+      ..onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'chat_rooms',
+        callback: (_) => _scheduleRefresh(),
+      )
+      ..onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'messages',
+        callback: (_) => _scheduleRefresh(),
+      )
+      ..subscribe();
+  }
+
+  void _scheduleRefresh() {
+    _refreshDebounce?.cancel();
+    _refreshDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) _loadRooms(showSpinner: false);
     });
   }
 
-  void _logout() {
+  Future<void> _refresh() => _loadRooms(showSpinner: true);
+
+  Future<void> _openChat(PharmacistConversation conv) async {
+    await Navigator.push(
+      context,
+      AppRouteTransitions.fadeSlide(
+        ConsultationScreen(
+          roomId: conv.roomId,
+          recipientId: conv.patientId,
+          recipientName: conv.patientName,
+        ),
+      ),
+    );
+    if (mounted) _loadRooms(showSpinner: false);
+  }
+
+  Future<void> _logout() async {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -749,7 +861,16 @@ class _ApotekerDashboardScreenState extends State<ApotekerDashboardScreen>
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () async {
+              Navigator.pop(context);
+              await _supabase.auth.signOut();
+              if (!mounted) return;
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (_) => false,
+              );
+            },
             child: Text(_t({'id': 'Logout', 'en': 'Logout', 'my': 'Keluar'})),
           ),
         ],
@@ -773,6 +894,8 @@ class _ApotekerDashboardScreenState extends State<ApotekerDashboardScreen>
               color: Colors.orange,
               child: _isLoading
                   ? _buildSkeleton()
+                  : _errorMessage != null
+                  ? _buildError()
                   : _filtered.isEmpty
                   ? _buildEmpty()
                   : ListView.builder(
@@ -1109,6 +1232,35 @@ class _ApotekerDashboardScreenState extends State<ApotekerDashboardScreen>
     );
   }
 
+  Widget _buildError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline_rounded, size: 48, color: Colors.red.shade400),
+            const SizedBox(height: 12),
+            Text(
+              _errorMessage ?? 'Terjadi kesalahan',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15 * _fs,
+                color: _isDark ? Colors.white70 : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _refresh,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Coba lagi'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmpty() {
     return Center(
       child: Column(
@@ -1218,7 +1370,7 @@ class _ConversationCard extends StatelessWidget {
     required this.formatTime,
     required this.onTap,
   });
-  final _MockConversation conv;
+  final PharmacistConversation conv;
   final bool isDark;
   final double fs;
   final String Function(DateTime) formatTime;

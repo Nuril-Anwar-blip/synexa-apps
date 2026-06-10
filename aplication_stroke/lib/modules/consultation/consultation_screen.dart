@@ -27,20 +27,33 @@ class ChatMessage {
     required this.content,
     required this.senderId,
     required this.createdAt,
+    this.isRead = false,
     this.metadata,
   });
 
   factory ChatMessage.fromMap(Map<String, dynamic> map) {
-    // Schema doesn't have metadata, so we handle it optionally
-    final dynamic rawMetadata = map['metadata'];
+    final attachmentUrl = map['attachment_url']?.toString();
+    final attachmentType = map['attachment_type']?.toString();
+    Map<String, dynamic>? metadata;
+    if (attachmentUrl != null && attachmentUrl.isNotEmpty) {
+      metadata = {
+        'type': attachmentType == 'image' ? 'image' : 'file',
+        'url': attachmentUrl,
+        if (map['content'] != null) 'name': map['content'],
+      };
+    } else {
+      final dynamic rawMetadata = map['metadata'];
+      if (rawMetadata is Map) {
+        metadata = Map<String, dynamic>.from(rawMetadata);
+      }
+    }
     return ChatMessage(
       id: map['id'].toString(),
       content: map['content'] ?? '',
       senderId: map['sender_id']?.toString() ?? '',
       createdAt: DateTime.parse(map['created_at']),
-      metadata: rawMetadata is Map
-          ? Map<String, dynamic>.from(rawMetadata)
-          : null,
+      isRead: map['is_read'] == true,
+      metadata: metadata,
     );
   }
 
@@ -48,6 +61,7 @@ class ChatMessage {
   final String content;
   final String senderId;
   final DateTime createdAt;
+  final bool isRead;
   final Map<String, dynamic>? metadata;
 }
 
@@ -77,7 +91,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   final ValueNotifier<bool> _isSending = ValueNotifier<bool>(false);
 
   late final SupabaseClient _supabase;
-  late final Stream<List<ChatMessage>> _messagesStream;
+  final List<ChatMessage> _messages = [];
+  bool _loadingMessages = true;
+  RealtimeChannel? _realtimeChannel;
   String? _currentUserId;
   String? _senderRole;
   String? _recipientPhone;
@@ -86,13 +102,14 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   void initState() {
     super.initState();
     _supabase = Supabase.instance.client;
-    _messagesStream = _supabase
-        .from('messages')
-        .stream(primaryKey: ['id'])
-        .eq('chat_room_id', widget.roomId)
-        .order('created_at', ascending: true)
-        .map((rows) => rows.map((row) => ChatMessage.fromMap(row)).toList());
-    _initProfile();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    await _initProfile();
+    await _loadMessages();
+    _setupRealtime();
+    await _markIncomingAsRead();
   }
 
   Future<void> _initProfile() async {
@@ -105,8 +122,79 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     _loadRecipientPhone();
   }
 
+  Future<void> _loadMessages() async {
+    try {
+      final rows = await _supabase
+          .from('messages')
+          .select(
+            'id, content, sender_id, sender_role, created_at, is_read, attachment_url, attachment_type',
+          )
+          .eq('chat_room_id', widget.roomId)
+          .order('created_at', ascending: true);
+      if (!mounted) return;
+      setState(() {
+        _messages
+          ..clear()
+          ..addAll(
+            rows.map((row) => ChatMessage.fromMap(Map<String, dynamic>.from(row))),
+          );
+        _loadingMessages = false;
+      });
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMessages = false);
+    }
+  }
+
+  void _setupRealtime() {
+    _realtimeChannel?.unsubscribe();
+    _realtimeChannel = _supabase.channel('consultation_${widget.roomId}')
+      ..onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'messages',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'chat_room_id',
+          value: widget.roomId,
+        ),
+        callback: (_) async {
+          await _loadMessages();
+          await _markIncomingAsRead();
+        },
+      )
+      ..subscribe();
+  }
+
+  Future<void> _markIncomingAsRead() async {
+    if (_senderRole == null) return;
+    final otherRole = _senderRole == 'patient' ? 'pharmacist' : 'patient';
+    final unreadField =
+        _senderRole == 'patient' ? 'unread_by_patient' : 'unread_by_pharmacist';
+    try {
+      await _supabase
+          .from('messages')
+          .update({
+            'is_read': true,
+            'read_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('chat_room_id', widget.roomId)
+          .eq('sender_role', otherRole)
+          .eq('is_read', false);
+      await _supabase
+          .from('chat_rooms')
+          .update({unreadField: 0})
+          .eq('id', widget.roomId);
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
+    _realtimeChannel?.unsubscribe();
+    if (_realtimeChannel != null) {
+      _supabase.removeChannel(_realtimeChannel!);
+    }
     _textController.dispose();
     _scrollController.dispose();
     _isSending.dispose();
@@ -126,8 +214,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         'sender_id': _currentUserId,
         'sender_role': _senderRole,
         'content': content,
+        'is_read': false,
       });
       _textController.clear();
+      await _loadMessages();
       _scrollToBottom();
     } catch (e) {
       if (!mounted) return;
@@ -427,16 +517,14 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                         ),
                       ],
                     ),
-                    child: StreamBuilder<List<ChatMessage>>(
-                      stream: _messagesStream,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
+                    child: Builder(
+                      builder: (context) {
+                        if (_loadingMessages) {
                           return const Center(
                             child: CircularProgressIndicator(),
                           );
                         }
-                        final messages = snapshot.data ?? [];
+                        final messages = _messages;
                         if (messages.isEmpty) {
                           return Center(
                             child: Column(
@@ -800,9 +888,11 @@ class _MessageBubble extends StatelessWidget {
                 if (isSender) ...[
                   const SizedBox(width: 4),
                   Icon(
-                    Icons.done_all,
+                    message.isRead ? Icons.done_all : Icons.done,
                     size: 16,
-                    color: Colors.white.withOpacity(0.9),
+                    color: message.isRead
+                        ? const Color(0xFF53BDEB)
+                        : Colors.white.withOpacity(0.75),
                   ),
                 ],
               ],
