@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/user_model.dart';
+import '../../utils/user_profile_helper.dart';
 import '../local/auth_local_service.dart';
 
 /**
@@ -57,6 +58,9 @@ class AuthService {
 
       if (response.session != null) {
         await AuthLocalService.setLoggedIn(true);
+        // Hubungkan auth_id apoteker/dokter via email bila seed_auth belum dijalankan
+        await UserProfileHelper.pharmacistProfileId();
+        await UserProfileHelper.doctorProfileId();
         await _insertPendingProfileIfExists();
       }
 
@@ -381,6 +385,24 @@ class AuthService {
 
       final currentUser = _supabase.auth.currentUser;
       if (currentUser == null) return;
+
+      final email = currentUser.email?.trim().toLowerCase();
+      if (email != null && email.isNotEmpty) {
+        final staffPharm = await _supabase
+            .from('pharmacists')
+            .select('id')
+            .eq('email', email)
+            .maybeSingle();
+        final staffDoctor = await _supabase
+            .from('doctors')
+            .select('id')
+            .eq('email', email)
+            .maybeSingle();
+        if (staffPharm != null || staffDoctor != null) {
+          await prefs.remove('pending_profile');
+          return;
+        }
+      }
 
       final Map<String, dynamic> pendingMap = Map<String, dynamic>.from(
         jsonDecode(pending),

@@ -563,6 +563,7 @@ import 'package:aplication_stroke/modules/consultation/consultation_screen.dart'
 import '../../services/remote/staff_presence_service.dart';
 import '../../utils/app_route_transitions.dart';
 import '../../utils/user_profile_helper.dart';
+import '../../utils/auth_logout_helper.dart';
 
 class PharmacistConversation {
   const PharmacistConversation({
@@ -863,13 +864,7 @@ class _ApotekerDashboardScreenState extends State<ApotekerDashboardScreen>
             ),
             onPressed: () async {
               Navigator.pop(context);
-              await _supabase.auth.signOut();
-              if (!mounted) return;
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (_) => false,
-              );
+              await AuthLogoutHelper.logout(context);
             },
             child: Text(_t({'id': 'Logout', 'en': 'Logout', 'my': 'Keluar'})),
           ),

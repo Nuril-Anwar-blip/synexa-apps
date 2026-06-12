@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../auth/login_screen.dart';
+import '../../utils/auth_logout_helper.dart';
 import '../../services/remote/doctor_service.dart';
 import '../../services/remote/staff_presence_service.dart';
 
@@ -68,13 +68,7 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
   }
 
   Future<void> _logout() async {
-    await _supabase.auth.signOut();
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (_) => false,
-    );
+    await AuthLogoutHelper.logout(context);
   }
 
   @override

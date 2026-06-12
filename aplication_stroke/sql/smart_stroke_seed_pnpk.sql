@@ -1,6 +1,7 @@
 -- ============================================================
 -- SMART STROKE – Seed PNPK 2019 (Obat + Rehab Fase 1–3 + Quiz)
--- Jalankan di Supabase SQL Editor SETELAH smart_stroke_schema.sql
+-- Jalankan SETELAH smart_stroke_schema.sql (+ admin_extension)
+-- AMAN dijalankan ulang — menghapus data PNPK lalu insert ulang
 -- ============================================================
 
 -- Kolom tambahan untuk latihan per sesi (pagi/siang/sore)
@@ -12,6 +13,8 @@ ALTER TABLE rehab_exercises
 -- ============================================================
 -- OBAT STROKE ORAL (PNPK 2019)
 -- ============================================================
+UPDATE user_medications SET medication_id = NULL WHERE medication_id IS NOT NULL;
+
 DELETE FROM medications;
 
 INSERT INTO medications (name, generic_name, category, dosage_form, strength, description) VALUES
@@ -42,6 +45,9 @@ INSERT INTO medications (name, generic_name, category, dosage_form, strength, de
 -- ============================================================
 -- FASE REHABILITASI (PNPK)
 -- ============================================================
+-- Urutan penting: hapus tabel anak yang mereferensi rehab_phases dulu
+DELETE FROM rehab_quiz_attempts;
+DELETE FROM rehab_user_progress;
 DELETE FROM rehab_quiz_questions;
 DELETE FROM rehab_exercise_logs;
 DELETE FROM rehab_exercises;

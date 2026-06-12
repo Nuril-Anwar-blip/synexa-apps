@@ -28,6 +28,40 @@ BEGIN
     '00000000-0000-0000-0000-000000000000'::UUID
   ) INTO v_instance_id;
 
+  -- Lepaskan FK sebelum hapus auth.users (hindari CASCADE ke admins/doctors)
+  UPDATE app_config
+    SET updated_by = NULL
+    WHERE updated_by = 'a0000001-0000-4000-8000-000000000001';
+
+  UPDATE doctor_invitations
+    SET used_by = NULL
+    WHERE used_by IN (
+      'd0000001-0000-4000-8000-000000000001',
+      'd0000002-0000-4000-8000-000000000002'
+    );
+
+  UPDATE pharmacist_invitations
+    SET used_by = NULL
+    WHERE used_by IN (
+      'b0000001-0000-4000-8000-000000000001',
+      'b0000002-0000-4000-8000-000000000002'
+    );
+
+  UPDATE admins      SET auth_id = NULL WHERE id = 'a0000001-0000-4000-8000-000000000001';
+  UPDATE pharmacists SET auth_id = NULL WHERE id IN (
+    'b0000001-0000-4000-8000-000000000001',
+    'b0000002-0000-4000-8000-000000000002'
+  );
+  UPDATE users SET auth_id = NULL WHERE id IN (
+    'c0000001-0000-4000-8000-000000000001',
+    'c0000002-0000-4000-8000-000000000002',
+    'c0000003-0000-4000-8000-000000000003'
+  );
+  UPDATE doctors SET auth_id = NULL WHERE id IN (
+    'd0000001-0000-4000-8000-000000000001',
+    'd0000002-0000-4000-8000-000000000002'
+  );
+
   -- Hapus akun dummy lama (aman dijalankan ulang)
   DELETE FROM auth.identities WHERE user_id IN (
     'a0000001-0000-4000-8000-000000000001',
@@ -134,3 +168,28 @@ UPDATE users       SET auth_id = 'c0000002-0000-4000-8000-000000000002' WHERE em
 UPDATE users       SET auth_id = 'c0000003-0000-4000-8000-000000000003' WHERE email = 'pasien.hasan@email.com';
 UPDATE doctors     SET auth_id = 'd0000001-0000-4000-8000-000000000001' WHERE email = 'dr.andi@rsstroke.id';
 UPDATE doctors     SET auth_id = 'd0000002-0000-4000-8000-000000000002' WHERE email = 'dr.rina@rsstroke.id';
+
+-- Sinkronkan auth_id dari email (jika UUID auth.users tidak sama dengan seed di atas)
+UPDATE pharmacists p
+SET auth_id = u.id
+FROM auth.users u
+WHERE lower(trim(p.email)) = lower(trim(u.email))
+  AND (p.auth_id IS DISTINCT FROM u.id);
+
+UPDATE doctors d
+SET auth_id = u.id
+FROM auth.users u
+WHERE lower(trim(d.email)) = lower(trim(u.email))
+  AND (d.auth_id IS DISTINCT FROM u.id);
+
+UPDATE users usr
+SET auth_id = u.id
+FROM auth.users u
+WHERE lower(trim(usr.email)) = lower(trim(u.email))
+  AND (usr.auth_id IS DISTINCT FROM u.id);
+
+UPDATE admins a
+SET auth_id = u.id
+FROM auth.users u
+WHERE lower(trim(a.email)) = lower(trim(u.email))
+  AND (a.auth_id IS DISTINCT FROM u.id);

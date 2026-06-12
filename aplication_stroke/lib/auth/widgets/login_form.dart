@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../services/remote/auth_service.dart';
 import '../../../../utils/input_validator.dart';
-import 'splash_screen.dart';
+import '../../utils/auth_role_navigation.dart';
 import 'auth_redirect_text.dart';
 import 'auth_bottom_section.dart';
 import 'password_form_field_with_label.dart';
@@ -56,10 +56,7 @@ class _LoginFormState extends State<LoginForm> {
       if (!mounted) return;
 
       if (response.session != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const SplashScreen()),
-        );
+        await AuthRoleNavigation.afterLogin(context);
       } else {
         _showSnackBar("Email atau password salah.");
       }

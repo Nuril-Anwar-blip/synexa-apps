@@ -13,11 +13,11 @@ import '../../models/user_model.dart';
 import '../../extensions/user_model_extension.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/language_provider.dart';
-import '../../auth/login_screen.dart';
 import '../pairing_scanner/pairing_scanner_screen.dart';
 import '../settings/settings_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../../utils/app_route_transitions.dart';
+import '../../utils/auth_logout_helper.dart';
 
 
 class ProfileScreen extends StatefulWidget {
@@ -186,12 +186,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       ),
     );
     if (shouldLogout == true) {
-      await Supabase.instance.client.auth.signOut();
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        AppRouteTransitions.fadeSlide(const LoginScreen()),
-        (_) => false,
-      );
+      await AuthLogoutHelper.logout(context);
     }
   }
 
@@ -489,34 +484,66 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildEmptyState(LanguageProvider lang) {
     return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          lang.translate({'id': 'Profil', 'en': 'Profile', 'ms': 'Profil'}),
+        ),
+      ),
       body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.person_off_outlined,
-              size: 72,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              lang.translate({
-                'id': 'Data profil tidak ditemukan',
-                'en': 'Profile data not found',
-                'ms': 'Data profil tidak dijumpai',
-              }),
-              style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              lang.translate({
-                'id': 'Mohon lengkapi profil Anda.',
-                'en': 'Please complete your profile.',
-                'ms': 'Sila lengkapkan profil anda.',
-              }),
-              style: TextStyle(color: Colors.grey.shade400),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.person_off_outlined,
+                size: 72,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                lang.translate({
+                  'id': 'Data profil tidak ditemukan',
+                  'en': 'Profile data not found',
+                  'ms': 'Data profil tidak dijumpai',
+                }),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                lang.translate({
+                  'id':
+                      'Akun ini mungkin bukan pasien (apoteker/dokter). Keluar lalu masuk dengan akun yang sesuai.',
+                  'en':
+                      'This account may not be a patient. Sign out and log in with the correct role.',
+                  'ms':
+                      'Akaun ini mungkin bukan pesakit. Log keluar dan masuk semula.',
+                }),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade500, height: 1.4),
+              ),
+              const SizedBox(height: 28),
+              FilledButton.icon(
+                onPressed: () => AuthLogoutHelper.logout(context),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.red.shade600,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 14,
+                  ),
+                ),
+                icon: const Icon(Icons.logout_rounded),
+                label: Text(
+                  lang.translate({
+                    'id': 'Keluar dari Akun',
+                    'en': 'Sign Out',
+                    'ms': 'Log Keluar',
+                  }),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

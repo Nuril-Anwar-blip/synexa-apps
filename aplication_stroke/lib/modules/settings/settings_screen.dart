@@ -42,6 +42,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../providers/theme_provider.dart';
 import '../../providers/language_provider.dart';
+import '../../utils/auth_logout_helper.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -348,6 +349,25 @@ class SettingsScreen extends StatelessWidget {
                       ),
                     ),
 
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => AuthLogoutHelper.logout(context),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.red.shade600,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        icon: const Icon(Icons.logout_rounded),
+                        label: Text(
+                          langProvider.translate({
+                            'id': 'Keluar dari Akun',
+                            'en': 'Sign Out',
+                            'ms': 'Log Keluar',
+                          }),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 32),
                   ]),
                 ),

@@ -1,7 +1,19 @@
 -- ============================================================
 -- SMART STROKE – Complete Supabase Database Schema v2
 -- Urutan CREATE TABLE diperbaiki: tidak ada forward reference
+--
+-- HANYA untuk database BARU (sekali saja).
+-- Jika sudah pernah dijalankan, LEWATI file ini dan lanjut ke
+-- smart_stroke_admin_extension.sql
 -- ============================================================
+
+DO $$
+BEGIN
+  IF to_regclass('public.admins') IS NOT NULL THEN
+    RAISE EXCEPTION
+      'Schema sudah terpasang (tabel admins ada). Lewati smart_stroke_schema.sql dan jalankan file SQL berikutnya saja.';
+  END IF;
+END $$;
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";

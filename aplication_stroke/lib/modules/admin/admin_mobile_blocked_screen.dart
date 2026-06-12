@@ -1,20 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../auth/widgets/splash_screen.dart';
+import '../../utils/auth_logout_helper.dart';
 
 /// Ditampilkan jika akun admin mencoba masuk lewat aplikasi mobile.
 class AdminMobileBlockedScreen extends StatelessWidget {
   const AdminMobileBlockedScreen({super.key});
 
   Future<void> _logout(BuildContext context) async {
-    await Supabase.instance.client.auth.signOut();
-    if (!context.mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const SplashScreen()),
-      (_) => false,
-    );
+    await AuthLogoutHelper.logout(context);
   }
 
   @override

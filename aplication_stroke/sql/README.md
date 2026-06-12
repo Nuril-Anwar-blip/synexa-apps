@@ -2,6 +2,8 @@
 
 Jalankan skrip di **Supabase Dashboard → SQL Editor** sesuai urutan di bawah.
 
+> **Database sudah pernah di-setup?** Lewati `smart_stroke_schema.sql` (akan error *relation already exists*). Lanjutkan dari file yang belum dijalankan, atau jalankan ulang file seed/extension saja.
+
 ## Urutan eksekusi
 
 | No | File | Keterangan |
@@ -9,7 +11,7 @@ Jalankan skrip di **Supabase Dashboard → SQL Editor** sesuai urutan di bawah.
 | 1 | `smart_stroke_schema.sql` | Schema utama (tabel, RLS dasar, trigger) |
 | 2 | `smart_stroke_admin_extension.sql` | Tabel & kebijakan admin |
 | 3 | `smart_stroke_seed_pnpk.sql` | Data PNPK (rehab, kuis, edukasi obat) |
-| 4 | `smart_stroke_seed_dummy.sql` | Data dummy lengkap (pasien, chat, komunitas, dll.) |
+| 4 | `smart_stroke_seed_dummy.sql` | Data dummy lengkap — **wajib setelah baris 1–3** |
 | 5 | `smart_stroke_seed_auth.sql` | Akun login Supabase Auth (wajib untuk login) |
 | 6 | `smart_stroke_storage_setup.sql` | Bucket storage untuk upload gambar komunitas |
 | 7 | `smart_stroke_staff_presence.sql` | Status online apoteker/dokter |

@@ -1,4 +1,30 @@
--- Pastikan kolom extension ada (jika tabel dibuat versi lama)
+-- ============================================================
+-- SMART STROKE – Data dummy lengkap (tanpa auth.users)
+--
+-- WAJIB jalankan BERURUTAN sebelum file ini:
+--   1. smart_stroke_schema.sql
+--   2. smart_stroke_admin_extension.sql
+--   3. smart_stroke_seed_pnpk.sql
+--
+-- Setelah ini, jalankan: smart_stroke_seed_auth.sql (untuk login)
+-- Password semua akun dummy: SmartStroke123!
+-- ============================================================
+
+DO $$
+BEGIN
+  IF to_regclass('public.doctors') IS NULL
+     OR to_regclass('public.doctor_invitations') IS NULL THEN
+    RAISE EXCEPTION
+      'Tabel dokter belum ada. Jalankan smart_stroke_admin_extension.sql dulu.';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM rehab_phases LIMIT 1) THEN
+    RAISE EXCEPTION
+      'Data rehab/obat belum ada. Jalankan smart_stroke_seed_pnpk.sql dulu.';
+  END IF;
+END $$;
+
+-- Kolom extension (idempotent)
 ALTER TABLE doctor_invitations
   ADD COLUMN IF NOT EXISTS name TEXT,
   ADD COLUMN IF NOT EXISTS license_number TEXT,
@@ -13,19 +39,6 @@ ALTER TABLE pharmacist_invitations
 ALTER TABLE doctors
   ADD COLUMN IF NOT EXISTS hospital_name TEXT,
   ADD COLUMN IF NOT EXISTS specialization TEXT;
-
--- ============================================================
--- SMART STROKE – Data dummy lengkap (tanpa auth.users)
--- Jalankan SETELAH:
---   1. smart_stroke_schema.sql
---   2. smart_stroke_admin_extension.sql
---   3. smart_stroke_seed_pnpk.sql
---
--- AMAN dijalankan ulang — menghapus data dummy by ID tetap lalu insert ulang.
--- Catatan: auth_id sengaja NULL agar tidak perlu buat user di Auth dulu.
--- Untuk login, jalankan juga: smart_stroke_seed_auth.sql
--- Password semua akun dummy: SmartStroke123!
--- ============================================================
 
 BEGIN;
 
@@ -111,6 +124,24 @@ DELETE FROM pairings WHERE id IN (
   'd1000001-0000-4000-8000-000000000001',
   'd1000002-0000-4000-8000-000000000002'
 );
+
+-- Lepaskan FK ke dokter/apoteker/admin sebelum hapus baris induk
+UPDATE doctor_invitations
+  SET used_by = NULL
+  WHERE used_by IN (
+    'd0000001-0000-4000-8000-000000000001',
+    'd0000002-0000-4000-8000-000000000002'
+  );
+UPDATE pharmacist_invitations
+  SET used_by = NULL
+  WHERE used_by IN (
+    'b0000001-0000-4000-8000-000000000001',
+    'b0000002-0000-4000-8000-000000000002'
+  );
+UPDATE app_config
+  SET updated_by = NULL
+  WHERE updated_by = 'a0000001-0000-4000-8000-000000000001';
+
 DELETE FROM doctor_invitations WHERE id IN (
   'd2000001-0000-4000-8000-000000000001',
   'd2000002-0000-4000-8000-000000000002',
@@ -198,17 +229,44 @@ INSERT INTO comments (id, post_id, user_id, content) VALUES
   ('f2000001-0000-4000-8000-000000000001', 'f0000001-0000-4000-8000-000000000001', 'c0000002-0000-4000-8000-000000000002', 'Selamat Pak Ahmad! Semangat terus ya 🙌');
 
 -- ── 9. OBAT PASIEN & PENGINGAT ─────────────────────────────────
+-- Fallback obat jika hanya schema.sql yang dijalankan (tanpa seed_pnpk)
+INSERT INTO medications (name, generic_name, category, dosage_form, strength)
+SELECT v.name, v.generic_name, v.category, v.dosage_form, v.strength
+FROM (VALUES
+  ('Aspirin',     'Asam Asetilsalisilat', 'antiplatelet',   'tablet', '80mg'),
+  ('Amlodipin',   'Amlodipine Besilat',   'antihipertensi', 'tablet', '5mg'),
+  ('Clopidogrel', 'Clopidogrel',          'antiplatelet',   'tablet', '75mg')
+) AS v(name, generic_name, category, dosage_form, strength)
+WHERE NOT EXISTS (
+  SELECT 1 FROM medications m
+  WHERE m.name = v.name
+     OR (v.name = 'Amlodipin' AND m.name IN ('Amlodipin', 'Amlodipine'))
+);
+
 INSERT INTO user_medications (id, user_id, medication_id, dosage, unit, instructions, prescribed_by, start_date, is_active)
 SELECT '07000001-0000-4000-8000-000000000001', 'c0000001-0000-4000-8000-000000000001', m.id, '1', 'tablet', 'Setelah makan pagi', 'b0000001-0000-4000-8000-000000000001', CURRENT_DATE - 30, TRUE
 FROM medications m WHERE m.name = 'Aspirin' LIMIT 1;
 
 INSERT INTO user_medications (id, user_id, medication_id, dosage, unit, instructions, prescribed_by, start_date, is_active)
 SELECT '07000002-0000-4000-8000-000000000002', 'c0000001-0000-4000-8000-000000000001', m.id, '1', 'tablet', 'Malam hari', 'b0000001-0000-4000-8000-000000000001', CURRENT_DATE - 30, TRUE
-FROM medications m WHERE m.name = 'Amlodipin' LIMIT 1;
+FROM medications m WHERE m.name IN ('Amlodipin', 'Amlodipine') LIMIT 1;
 
 INSERT INTO user_medications (id, user_id, medication_id, dosage, unit, instructions, prescribed_by, start_date, is_active)
 SELECT '07000003-0000-4000-8000-000000000003', 'c0000002-0000-4000-8000-000000000002', m.id, '1', 'tablet', 'Setelah makan', 'b0000001-0000-4000-8000-000000000001', CURRENT_DATE - 20, TRUE
 FROM medications m WHERE m.name = 'Clopidogrel' LIMIT 1;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM user_medications WHERE id = '07000001-0000-4000-8000-000000000001') THEN
+    RAISE EXCEPTION 'Obat Aspirin tidak ditemukan. Jalankan smart_stroke_seed_pnpk.sql dulu.';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM user_medications WHERE id = '07000002-0000-4000-8000-000000000002') THEN
+    RAISE EXCEPTION 'Obat Amlodipin/Amlodipine tidak ditemukan. Jalankan smart_stroke_seed_pnpk.sql dulu.';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM user_medications WHERE id = '07000003-0000-4000-8000-000000000003') THEN
+    RAISE EXCEPTION 'Obat Clopidogrel tidak ditemukan. Jalankan smart_stroke_seed_pnpk.sql dulu.';
+  END IF;
+END $$;
 
 INSERT INTO medication_reminders (id, user_id, user_medication_id, medication_name, dosage, reminder_times, is_active) VALUES
   ('07100001-0000-4000-8000-000000000001', 'c0000001-0000-4000-8000-000000000001', '07000001-0000-4000-8000-000000000001', 'Aspirin', '1 tablet', '["07:00","19:00"]', TRUE),
@@ -249,7 +307,7 @@ WHERE p.phase_number = 2 AND e.order_index = 1
 LIMIT 1;
 
 INSERT INTO rehab_quiz_attempts (id, user_id, phase_id, answers, score, total_questions, correct_answers, is_passed)
-SELECT '0a200001-0000-4000-8000-000000000001', 'c0000001-0000-4000-8000-000000000001', p.id, '{"q1":"good","q2":"good"}', 8, 5, 4, TRUE
+SELECT '0a200001-0000-4000-8000-000000000001', 'c0000001-0000-4000-8000-000000000001', p.id, '{"q1":"good","q2":"good"}'::jsonb, 8, 5, 4, TRUE
 FROM rehab_phases p WHERE p.phase_number = 2 LIMIT 1;
 
 -- ── 12. NOTIFIKASI & EMERGENCY ─────────────────────────────────
